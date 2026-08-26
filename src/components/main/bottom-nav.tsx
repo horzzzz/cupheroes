@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTabTrigger } from 'expo-router/ui';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,19 +31,29 @@ const ITEMS: NavItem[] = [
   { key: 'upgrades', icon: UPGRADES_ICON, label: 'UPGRADES', labelSize: 15 },
 ];
 
-function PlatformSegment({
-  backgroundColor,
-  borderTopColor,
-  children,
-}: {
-  backgroundColor?: string;
-  borderTopColor: string;
-  children?: React.ReactNode;
-}) {
+function PlatformSegment({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <View style={{ flex: 1, borderTopWidth: 2, borderTopColor: Colors.white }}>
+        <LinearGradient
+          colors={[Colors.platformActiveTop, Colors.platformActiveBottom]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ flex: 1 }}
+        />
+      </View>
+    );
+  }
+
   return (
-    <View style={{ flex: 1, borderTopWidth: 2, borderTopColor, backgroundColor }}>
-      {children}
-    </View>
+    <View
+      style={{
+        flex: 1,
+        borderTopWidth: 2,
+        borderTopColor: 'rgba(255,255,255,0.5)',
+        backgroundColor: Colors.darkPanel,
+      }}
+    />
   );
 }
 
@@ -70,6 +81,10 @@ export function BottomNav() {
   const { width } = useWindowDimensions();
   const { bottom: insetBottom } = useSafeAreaInsets();
   const sideBleed = Math.max((width - MainScreen.frameWidth) / 2, 0);
+  // Only used to reach `switchTab`/`getTrigger` — the active item itself is
+  // looked up per-item below, since the platform segment below the icon row
+  // needs every item's focus state, not just this hook's own `name`.
+  const { switchTab, getTrigger } = useTabTrigger({ name: 'fight' });
 
   return (
     <View style={{ marginHorizontal: -sideBleed, bottom: -insetBottom }}>
@@ -81,7 +96,9 @@ export function BottomNav() {
               flex: 1,
               alignItems: index === 0 ? 'flex-start' : index === 2 ? 'flex-end' : 'center',
             }}>
-            <Pressable style={{ width: BUTTON_SIZE, height: BUTTON_SIZE }}>
+            <Pressable
+              style={{ width: BUTTON_SIZE, height: BUTTON_SIZE }}
+              onPress={() => switchTab(item.key, {})}>
               <Image
                 source={item.icon}
                 style={{ width: '100%', height: '100%' }}
@@ -116,16 +133,9 @@ export function BottomNav() {
           // icon row above it, which stays anchored to the safe position.
           height: PLATFORM_HEIGHT,
         }}>
-        <PlatformSegment backgroundColor={Colors.darkPanel} borderTopColor="rgba(255,255,255,0.5)" />
-        <PlatformSegment borderTopColor={Colors.white}>
-          <LinearGradient
-            colors={[Colors.platformActiveTop, Colors.platformActiveBottom]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={{ flex: 1 }}
-          />
-        </PlatformSegment>
-        <PlatformSegment backgroundColor={Colors.darkPanel} borderTopColor="rgba(255,255,255,0.5)" />
+        {ITEMS.map((item) => (
+          <PlatformSegment key={item.key} active={Boolean(getTrigger(item.key)?.isFocused)} />
+        ))}
       </View>
     </View>
   );
