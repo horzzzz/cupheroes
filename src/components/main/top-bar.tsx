@@ -2,8 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, View } from 'react-native';
 
-import { GameText } from '@/components/ui/game-text';
-import { Fonts } from '@/constants/fonts';
+import { BalancePill } from '@/components/ui/balance-pill';
 import { Colors } from '@/constants/theme';
 
 const COIN_ICON = require('@/assets/images/main/icon-coin.webp');
@@ -18,34 +17,11 @@ const COINS = 150;
 const GEMS = 12;
 const LEVEL_PROGRESS = 0.6;
 
-const PILL_WIDTH = 100;
-const PILL_HEIGHT = 36;
 const ICON_SIZE = 36;
 const LEVEL_BADGE_SIZE = 36;
 const PROGRESS_HEIGHT = 30;
 const PROGRESS_WIDTH = 192 - LEVEL_BADGE_SIZE / 2 - 18;
 const PROGRESS_OVERLAP = 18;
-
-function BalancePill({ icon, value }: { icon: number; value: number }) {
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        width: PILL_WIDTH,
-        height: PILL_HEIGHT,
-        borderRadius: PILL_HEIGHT / 2,
-        backgroundColor: Colors.balancePill,
-        paddingLeft: 10,
-      }}>
-      <Image source={icon} style={{ width: 24, height: 24 }} contentFit="contain" />
-      <GameText
-        style={{ marginLeft: 8, fontFamily: Fonts.nunito, fontSize: 18, color: Colors.white }}>
-        {value}
-      </GameText>
-    </View>
-  );
-}
 
 type TopBarProps = {
   onOpenSettings?: () => void;

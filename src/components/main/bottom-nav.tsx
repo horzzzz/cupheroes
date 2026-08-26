@@ -87,7 +87,7 @@ export function BottomNav() {
   const { switchTab, getTrigger } = useTabTrigger({ name: 'fight' });
 
   return (
-    <View style={{ marginHorizontal: -sideBleed, bottom: -insetBottom }}>
+    <View style={{ marginHorizontal: -sideBleed, marginBottom: -insetBottom }}>
       <View style={{ flexDirection: 'row', zIndex: 2, paddingHorizontal: 20 + sideBleed }}>
         {ITEMS.map((item, index) => (
           <View
