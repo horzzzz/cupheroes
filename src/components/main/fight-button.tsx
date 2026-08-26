@@ -5,11 +5,17 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { useDesignScale } from '@/hooks/use-design-scale';
 
 const BUTTON_ASSET = require('@/assets/images/ui/button-pill.webp');
 
-const WIDTH = 238;
-const HEIGHT = 80;
+const WIDTH_BASE = 238;
+const HEIGHT_BASE = 80;
+const FONT_SIZE_BASE = 36;
+const WIDTH_MIN = 180;
+const WIDTH_MAX = 238;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 type FightButtonProps = {
   onPress?: () => void;
@@ -17,6 +23,10 @@ type FightButtonProps = {
 
 export function FightButton({ onPress }: FightButtonProps) {
   const [pressed, setPressed] = useState(false);
+  const { s } = useDesignScale();
+  const width = clamp(WIDTH_BASE * s, WIDTH_MIN, WIDTH_MAX);
+  const height = width * (HEIGHT_BASE / WIDTH_BASE);
+  const fontSize = FONT_SIZE_BASE * (width / WIDTH_BASE);
 
   return (
     <Pressable
@@ -25,8 +35,8 @@ export function FightButton({ onPress }: FightButtonProps) {
       onPressOut={() => setPressed(false)}
       style={{
         alignSelf: 'center',
-        width: WIDTH,
-        height: HEIGHT,
+        width,
+        height,
         maxWidth: '100%',
         marginBottom: 24,
         transform: [{ scale: pressed ? 0.96 : 1 }],
@@ -37,7 +47,7 @@ export function FightButton({ onPress }: FightButtonProps) {
           style={{
             textTransform: 'uppercase',
             fontFamily: Fonts.titan,
-            fontSize: 36,
+            fontSize,
             color: Colors.white,
           }}>
           FIGHT
