@@ -7,6 +7,13 @@ import { Colors } from '@/constants/theme';
 type GameTextProps = TextProps & {
   /** Renders the text filled with the brand yellow->orange gradient instead of a flat color. */
   gradient?: boolean;
+  /** Overrides the default gradient colors (only used when `gradient` is set). */
+  gradientColors?: [string, string, ...string[]];
+  /** Overrides the default gradient stop positions (only used when `gradient` is set). */
+  gradientLocations?: [number, number, ...number[]];
+  /** Overrides the default left-to-right gradient direction (only used when `gradient` is set). */
+  gradientStart?: { x: number; y: number };
+  gradientEnd?: { x: number; y: number };
 };
 
 /**
@@ -14,7 +21,16 @@ type GameTextProps = TextProps & {
  * flat "comic outline" look from the Figma designs) plus an optional
  * gradient fill for headline text.
  */
-export function GameText({ style, gradient, children, ...rest }: GameTextProps) {
+export function GameText({
+  style,
+  gradient,
+  gradientColors,
+  gradientLocations,
+  gradientStart,
+  gradientEnd,
+  children,
+  ...rest
+}: GameTextProps) {
   const flattened = StyleSheet.flatten(style) as TextStyle | undefined;
 
   if (gradient) {
@@ -37,9 +53,10 @@ export function GameText({ style, gradient, children, ...rest }: GameTextProps) 
             {children}
           </Text>
           <LinearGradient
-            colors={[Colors.gradientStart, Colors.gradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            colors={gradientColors ?? [Colors.gradientStart, Colors.gradientEnd]}
+            locations={gradientLocations}
+            start={gradientStart ?? { x: 0, y: 0 }}
+            end={gradientEnd ?? { x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}
           />
         </MaskedView>

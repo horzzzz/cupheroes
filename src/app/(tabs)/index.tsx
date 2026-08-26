@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -18,7 +19,10 @@ export default function HomeScreen() {
   return (
     <>
       <View style={{ flex: 1, paddingHorizontal: 15 }}>
-        <TopBar onOpenSettings={() => setSettingsVisible(true)} />
+        <TopBar
+          onOpenSettings={() => setSettingsVisible(true)}
+          onOpenWheel={() => router.push('/wheel')}
+        />
         <ChapterHeader />
         <HeroShowcase />
         <FightButton />

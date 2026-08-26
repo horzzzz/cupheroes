@@ -49,9 +49,10 @@ function BalancePill({ icon, value }: { icon: number; value: number }) {
 
 type TopBarProps = {
   onOpenSettings?: () => void;
+  onOpenWheel?: () => void;
 };
 
-export function TopBar({ onOpenSettings }: TopBarProps) {
+export function TopBar({ onOpenSettings, onOpenWheel }: TopBarProps) {
   return (
     <View>
       <View style={{ position: 'absolute', right: 0, gap: 20 }}>
@@ -62,11 +63,13 @@ export function TopBar({ onOpenSettings }: TopBarProps) {
             contentFit="contain"
           />
         </Pressable>
-        <Image
-          source={WHEEL_ICON}
-          style={{ width: ICON_SIZE, height: ICON_SIZE }}
-          contentFit="contain"
-        />
+        <Pressable onPress={onOpenWheel}>
+          <Image
+            source={WHEEL_ICON}
+            style={{ width: ICON_SIZE, height: ICON_SIZE }}
+            contentFit="contain"
+          />
+        </Pressable>
         <Image
           source={DAILY_REWARD_ICON}
           style={{ width: ICON_SIZE, height: ICON_SIZE }}
