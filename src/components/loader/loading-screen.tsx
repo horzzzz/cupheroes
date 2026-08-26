@@ -15,7 +15,7 @@ import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { useDesignScale } from '@/hooks/use-design-scale';
 
-const LOGO_ASSET = require('@/assets/images/loader/logo.png');
+const LOGO_ASSET = require('@/assets/images/loader/logo.webp');
 const LOGO_SIZE = 290;
 const LOGO_TOP = 80;
 const LOGO_LEFT = 50;
@@ -36,7 +36,9 @@ type LoadingScreenProps = {
 
 /** Figma node 1:2316 — progress screen shown right after the native splash. */
 export function LoadingScreen({ onDone }: LoadingScreenProps) {
-  const { width, sx, sy, s } = useDesignScale();
+  // Loader screens keep the old edge-to-edge mapping (no safe-area insets):
+  // their content already sits well clear of the status bar / home indicator.
+  const { width, sx, rawSy: sy, rawS: s } = useDesignScale();
   const progress = useSharedValue(0);
 
   useEffect(() => {

@@ -9,6 +9,13 @@ export const Colors = {
   trackBackground: '#250404',
   screenBackground: '#050b0d',
   white: '#ffffff',
+
+  darkPanel: '#250404',
+  balancePill: 'rgba(37,4,4,0.65)',
+  platformActiveTop: '#FCCE02',
+  platformActiveBottom: '#E66C02',
+  progressGreenStart: '#00B215',
+  progressGreenEnd: '#5AFC02',
 } as const;
 
 export const DesignFrame = {

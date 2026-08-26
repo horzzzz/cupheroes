@@ -3,19 +3,15 @@ import { StyleSheet, View } from 'react-native';
 
 import { useDesignScale } from '@/hooks/use-design-scale';
 
-const BG_ASSET = require('@/assets/images/loader/bg.webp');
+const BG_ASSET = require('@/assets/images/main/bg.webp');
 // Natural size of the exported background artwork, in Figma design points.
-const BG_WIDTH = 420;
-const BG_HEIGHT = 1148;
-const BG_CENTER_Y_OFFSET = 42;
+const BG_WIDTH = 566;
+const BG_HEIGHT = 1548;
+const BG_CENTER_X_OFFSET = 34;
 
-/**
- * Full-bleed background shared by the loading and start screens: a dark
- * backdrop with the swamp/knight illustration centered slightly below the
- * screen's vertical middle, matching Figma nodes 1:2317 / 1:7.
- */
-export function LoaderBackground() {
-  const { width, height, rawS } = useDesignScale();
+/** Full-bleed background for the main screen, matching Figma node 1:27/1:28. */
+export function MainBackground() {
+  const { width, sx, rawS } = useDesignScale();
   const bgWidth = BG_WIDTH * rawS;
   const bgHeight = BG_HEIGHT * rawS;
 
@@ -28,8 +24,8 @@ export function LoaderBackground() {
           {
             width: bgWidth,
             height: bgHeight,
-            left: width / 2 - bgWidth / 2,
-            top: height / 2 + BG_CENTER_Y_OFFSET * rawS - bgHeight / 2,
+            left: width / 2 + BG_CENTER_X_OFFSET * sx - bgWidth / 2,
+            top: 0,
           },
         ]}
         contentFit="cover"

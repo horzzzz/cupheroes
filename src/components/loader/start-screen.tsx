@@ -8,9 +8,9 @@ import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { useDesignScale } from '@/hooks/use-design-scale';
 
-const LOGO_ASSET = require('@/assets/images/loader/logo.png');
-const HERO_ASSET = require('@/assets/images/loader/hero.png');
-const BUTTON_ASSET = require('@/assets/images/loader/button-play.png');
+const LOGO_ASSET = require('@/assets/images/loader/logo.webp');
+const HERO_ASSET = require('@/assets/images/loader/hero.webp');
+const BUTTON_ASSET = require('@/assets/images/ui/button-pill.webp');
 
 const LOGO_SIZE = 290;
 const LOGO_TOP = 80;
@@ -37,7 +37,9 @@ type StartScreenProps = {
 
 /** Figma node 1:6 — welcome/PLAY screen shown after the loading progress bar. */
 export function StartScreen({ onStart }: StartScreenProps) {
-  const { width, sx, sy, s } = useDesignScale();
+  // Loader screens keep the old edge-to-edge mapping (no safe-area insets):
+  // their content already sits well clear of the status bar / home indicator.
+  const { width, sx, rawSy: sy, rawS: s } = useDesignScale();
   const [pressed, setPressed] = useState(false);
 
   return (
