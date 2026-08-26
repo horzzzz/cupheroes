@@ -1,0 +1,40 @@
+import { Nunito_700Bold } from '@expo-google-fonts/nunito';
+import { TitanOne_400Regular } from '@expo-google-fonts/titan-one';
+import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useCallback, useEffect, useState } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import { LoadingScreen } from '@/components/loader/loading-screen';
+import { StartScreen } from '@/components/loader/start-screen';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+type Phase = 'loading' | 'start' | 'app';
+
+export default function RootLayout() {
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [fontsLoaded] = useFonts({ TitanOne_400Regular, Nunito_700Bold });
+
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
+  const handleLoadingDone = useCallback(() => setPhase('start'), []);
+  const handleStart = useCallback(() => setPhase('app'), []);
+
+  if (!fontsLoaded) return null;
+
+  return (
+    // Required by react-native-gesture-handler; expo-router does not add one.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        {phase === 'loading' && <LoadingScreen onDone={handleLoadingDone} />}
+        {phase === 'start' && <StartScreen onStart={handleStart} />}
+        {phase === 'app' && <Stack screenOptions={{ headerShown: false }} />}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
