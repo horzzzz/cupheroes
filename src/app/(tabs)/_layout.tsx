@@ -8,8 +8,16 @@ import { MainScreen } from '@/constants/theme';
 
 /**
  * Shared shell for the tabbed app screens (hub/shop/upgrades) — background,
- * safe area, capped content column, and the bottom nav live here so they
- * persist across screens instead of remounting per-route.
+ * bottom safe area, and the bottom nav live here so they persist across
+ * screens instead of remounting per-route.
+ *
+ * Screens get the full window width and are free to run under the status
+ * bar: the slot is rendered by react-native-screens, which clips to its own
+ * bounds, so anything the shell reserved here would be unreachable from a
+ * screen that needs to paint edge to edge (the upgrades ladder does). Screens
+ * that want the old capped, status-bar-clearing column wrap themselves in
+ * `ScreenColumn`; only the nav keeps its column here, because its bleed math
+ * is written against it.
  *
  * Uses expo-router's headless Tabs (`expo-router/ui`) rather than the
  * built-in `<Tabs>` navigator: that renders its tab bar in its own
@@ -22,9 +30,9 @@ export default function TabsLayout() {
   return (
     <Tabs style={{ flex: 1 }}>
       <MainBackground />
-      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        <View style={{ flex: 1, width: '100%', maxWidth: MainScreen.frameWidth, alignSelf: 'center' }}>
-          <TabSlot style={{ flex: 1 }} />
+      <SafeAreaView style={{ flex: 1 }} edges={['bottom']}>
+        <TabSlot style={{ flex: 1 }} />
+        <View style={{ width: '100%', maxWidth: MainScreen.frameWidth, alignSelf: 'center' }}>
           <BottomNav />
         </View>
       </SafeAreaView>

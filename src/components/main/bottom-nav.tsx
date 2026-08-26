@@ -1,12 +1,13 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTabTrigger } from 'expo-router/ui';
-import { Pressable, useWindowDimensions, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
-import { Colors, MainScreen } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
+import { useSideBleed } from '@/hooks/use-side-bleed';
 
 const SHOP_ICON = require('@/assets/images/main/button-shop.webp');
 const FIGHT_ICON = require('@/assets/images/main/button-fight-small.webp');
@@ -78,9 +79,8 @@ function PlatformSegment({ active }: { active: boolean }) {
  * inset, as designed) doesn't need to know about it.
  */
 export function BottomNav() {
-  const { width } = useWindowDimensions();
   const { bottom: insetBottom } = useSafeAreaInsets();
-  const sideBleed = Math.max((width - MainScreen.frameWidth) / 2, 0);
+  const sideBleed = useSideBleed();
   // Only used to reach `switchTab`/`getTrigger` — the active item itself is
   // looked up per-item below, since the platform segment below the icon row
   // needs every item's focus state, not just this hook's own `name`.

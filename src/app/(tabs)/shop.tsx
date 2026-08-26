@@ -6,7 +6,8 @@ import { CoinsCard, type CoinsPack } from '@/components/shop/coins-card';
 import { FreeGemsButton } from '@/components/shop/free-gems-button';
 import { GemPackGrid, type GemPackItem } from '@/components/shop/gem-pack-grid';
 import { ShopHeading } from '@/components/shop/shop-heading';
-import { ShopTopBar } from '@/components/shop/shop-top-bar';
+import { ScreenColumn } from '@/components/ui/screen-column';
+import { ScreenTopBar } from '@/components/ui/screen-top-bar';
 
 const HEAD_DIAMONDS = require('@/assets/images/shop/head-diamonds.webp');
 const HEAD_COINS = require('@/assets/images/shop/head-coins.webp');
@@ -38,17 +39,18 @@ const CARDS_GAP = 10;
 
 /**
  * Shop screen — Figma node 1:144. Purchases aren't wired up yet, values are
- * hardcoded. Background, safe area, and the bottom nav live in
- * `(tabs)/_layout.tsx`; the content scrolls because it is taller than the
- * frame (the design already cuts the coin cards off at the bottom).
+ * hardcoded. Background and the bottom nav live in `(tabs)/_layout.tsx`,
+ * the capped column and status-bar inset in `ScreenColumn`; the content
+ * scrolls because it is taller than the frame (the design already cuts the
+ * coin cards off at the bottom).
  */
 export default function ShopScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
 
   return (
     <>
-      <View style={{ flex: 1 }}>
-        <ShopTopBar coins={COINS} gems={GEMS} onOpenSettings={() => setSettingsVisible(true)} />
+      <ScreenColumn>
+        <ScreenTopBar coins={COINS} gems={GEMS} onOpenSettings={() => setSettingsVisible(true)} />
 
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -68,7 +70,7 @@ export default function ShopScreen() {
             ))}
           </View>
         </ScrollView>
-      </View>
+      </ScreenColumn>
 
       <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
     </>
