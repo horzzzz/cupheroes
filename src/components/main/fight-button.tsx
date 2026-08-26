@@ -5,21 +5,17 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
-import { useDesignScale } from '@/hooks/use-design-scale';
 
 const BUTTON_ASSET = require('@/assets/images/ui/button-pill.webp');
 
-const WIDTH = 258;
-const HEIGHT = 95;
-const TOP = 589;
+const WIDTH = 238;
+const HEIGHT = 80;
 
 type FightButtonProps = {
   onPress?: () => void;
 };
 
-/** Main "FIGHT" call to action — Figma node 1:77, reuses the loader's pill texture. */
 export function FightButton({ onPress }: FightButtonProps) {
-  const { width, sy, s } = useDesignScale();
   const [pressed, setPressed] = useState(false);
 
   return (
@@ -28,11 +24,11 @@ export function FightButton({ onPress }: FightButtonProps) {
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
       style={{
-        position: 'absolute',
-        left: width / 2 - (WIDTH * s) / 2,
-        top: TOP * sy,
-        width: WIDTH * s,
-        height: HEIGHT * s,
+        alignSelf: 'center',
+        width: WIDTH,
+        height: HEIGHT,
+        maxWidth: '100%',
+        marginBottom: 24,
         transform: [{ scale: pressed ? 0.96 : 1 }],
       }}>
       <Image source={BUTTON_ASSET} style={StyleSheet.absoluteFill} contentFit="fill" />
@@ -41,7 +37,7 @@ export function FightButton({ onPress }: FightButtonProps) {
           style={{
             textTransform: 'uppercase',
             fontFamily: Fonts.titan,
-            fontSize: 36 * s,
+            fontSize: 36,
             color: Colors.white,
           }}>
           FIGHT

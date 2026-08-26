@@ -22,3 +22,8 @@ export const DesignFrame = {
   width: 390,
   height: 844,
 } as const;
+
+/** Caps and centers the main screen's content column on wide screens/tablets. */
+export const MainScreen = {
+  frameWidth: 390,
+} as const;
