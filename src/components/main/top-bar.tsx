@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
@@ -47,15 +47,21 @@ function BalancePill({ icon, value }: { icon: number; value: number }) {
   );
 }
 
-export function TopBar() {
+type TopBarProps = {
+  onOpenSettings?: () => void;
+};
+
+export function TopBar({ onOpenSettings }: TopBarProps) {
   return (
     <View>
       <View style={{ position: 'absolute', right: 0, gap: 20 }}>
-        <Image
-          source={SETTINGS_ICON}
-          style={{ width: ICON_SIZE, height: ICON_SIZE }}
-          contentFit="contain"
-        />
+        <Pressable onPress={onOpenSettings}>
+          <Image
+            source={SETTINGS_ICON}
+            style={{ width: ICON_SIZE, height: ICON_SIZE }}
+            contentFit="contain"
+          />
+        </Pressable>
         <Image
           source={WHEEL_ICON}
           style={{ width: ICON_SIZE, height: ICON_SIZE }}
