@@ -1,13 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
 
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
-import { moveOffsetAt } from '@/game/battle/actor-layout';
-import type { MoveBeat } from '@/game/battle/combat';
+import { healthAt, moveOffsetAt } from '@/game/battle/actor-layout';
+import type { AttackBeat, MoveBeat } from '@/game/battle/combat';
 import type { GameClock } from '@/game/clock';
 
 /**
@@ -16,9 +16,12 @@ import type { GameClock } from '@/game/clock';
  * as plain RN views rather than Skia -- the bar sits at a fixed slot
  * position regardless of the sprite's own idle bob/lunge, so there's no
  * per-frame sync needed with the canvas, just a width tween on health
- * changes. `left` alone is read off the game clock every frame (via
- * `moveOffsetAt`) so a melee enemy's bar rides along with its approach
- * instead of snapping to the new slot a beat early.
+ * changes. Both `left` and the fill width are read off the game clock every
+ * frame (via `moveOffsetAt`/`healthAt`) rather than off the `health`/`standX`
+ * props directly -- the store commits a round's outcome all at once, but the
+ * beats that produced it (this actor's approach step, the hit that dealt the
+ * damage) play out staggered across the round, so reading the props straight
+ * would move the bar (or drop its fill) before the actor's own beat does.
  */
 
 const BAR_HEIGHT = 16;
@@ -45,6 +48,9 @@ type HealthBarProps = {
   variant: 'hero' | 'enemy';
   armor?: number;
   moveBeat?: MoveBeat;
+  /** This round's attack beats that hit this actor, oldest first -- see `healthAt`. Empty/undefined
+   * when nothing hit it this round, in which case `health` (unchanged from last round) is shown as-is. */
+  hitBeats?: readonly AttackBeat[];
   /** Game-clock time this bar should pop in -- e.g. an entering enemy's run-in finish, so the bar
    * doesn't sit at the resting slot while the sprite is still visibly running in from off-screen. */
   revealAt?: number;
@@ -62,20 +68,33 @@ export function HealthBar({
   variant,
   armor,
   moveBeat,
+  hitBeats,
   revealAt,
 }: HealthBarProps) {
-  const ratio = useSharedValue(maxHealth > 0 ? health / maxHealth : 0);
-
-  useEffect(() => {
-    ratio.value = withTiming(maxHealth > 0 ? Math.max(0, health / maxHealth) : 0, { duration: 250 });
-  }, [health, maxHealth, ratio]);
-
-  const fillStyle = useAnimatedStyle(() => ({ width: `${ratio.value * 100}%` }));
+  const displayHealth = useDerivedValue(() =>
+    Math.max(0, healthAt(clock.time.value, hitBeats ?? [], health)),
+  );
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${(maxHealth > 0 ? displayHealth.value / maxHealth : 0) * 100}%`,
+  }));
   const left = useDerivedValue(() => (moveOffsetAt(clock.time.value, standX, moveBeat) + offsetX) * scale);
   const positionStyle = useAnimatedStyle(() => ({
     left: left.value,
     opacity: revealAt === undefined || clock.time.value >= revealAt ? 1 : 0,
   }));
+
+  // The number inside the bar is plain RN text (no reanimated content
+  // binding for that), so it's kept as ordinary state -- but updated from
+  // the same clock-driven value as the bar, only on the whole-number
+  // changes that actually matter, so it lands in step with the bar instead
+  // of jumping the instant the round resolves.
+  const [displayedText, setDisplayedText] = useState(() => Math.max(0, Math.round(health)));
+  useAnimatedReaction(
+    () => Math.round(displayHealth.value),
+    (rounded, previous) => {
+      if (rounded !== previous) runOnJS(setDisplayedText)(rounded);
+    },
+  );
 
   return (
     <Animated.View
@@ -123,7 +142,7 @@ export function HealthBar({
           fontSize: 12 * scale,
           color: Colors.white,
         }}>
-        {Math.max(0, Math.round(health))}
+        {displayedText}
       </GameText>
       {variant === 'hero' && armor !== undefined && (
         <View

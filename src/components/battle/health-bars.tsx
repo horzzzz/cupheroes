@@ -1,6 +1,6 @@
 import { HERO_POS, Timing } from '@/constants/battle';
 import { HealthBar } from '@/components/battle/health-bar';
-import type { MoveBeat } from '@/game/battle/combat';
+import type { AttackBeat, MoveBeat } from '@/game/battle/combat';
 import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 
@@ -16,6 +16,10 @@ export function HealthBars({ clock, scale }: { clock: GameClock; scale: number }
   const round = useBattleStore((s) => s.round);
   const enteredAt = useBattleStore((s) => s.enteredAt);
 
+  const heroHitBeats = round?.beats.filter(
+    (beat): beat is AttackBeat => beat.kind === 'attack' && beat.targetId === 'hero',
+  );
+
   return (
     <>
       <HealthBar
@@ -28,11 +32,15 @@ export function HealthBars({ clock, scale }: { clock: GameClock; scale: number }
         maxHealth={heroMaxHealth}
         variant="hero"
         armor={heroArmor}
+        hitBeats={heroHitBeats}
       />
       {enemies.map((enemy) => {
         if (!enemy.alive) return null;
         const moveBeat = round?.beats.find(
           (beat): beat is MoveBeat => beat.kind === 'move' && beat.actorId === enemy.id,
+        );
+        const hitBeats = round?.beats.filter(
+          (beat): beat is AttackBeat => beat.kind === 'attack' && beat.targetId === enemy.id,
         );
         return (
           <HealthBar
@@ -47,6 +55,7 @@ export function HealthBars({ clock, scale }: { clock: GameClock; scale: number }
             maxHealth={enemy.spec.maxHealth}
             variant="enemy"
             moveBeat={moveBeat}
+            hitBeats={hitBeats}
             revealAt={(enteredAt[enemy.id] ?? 0) + Timing.enemyEnter}
           />
         );

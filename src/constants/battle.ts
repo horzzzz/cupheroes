@@ -68,6 +68,9 @@ export const Timing = {
   moveStep: 0.8,
   /** How long a hit-flash/recoil lasts on the target. */
   hitFlash: 0.3,
+  /** How long a health bar (and its number) takes to settle on a new value once the beat that changed
+   * it actually starts -- not once the round resolves, which can be a couple of beats earlier. */
+  healthTween: 0.25,
   /** Fade-and-drop duration when an enemy dies. */
   deathFade: 0.5,
   /** Pause after the last enemy of a pack dies, before the hero advances. */

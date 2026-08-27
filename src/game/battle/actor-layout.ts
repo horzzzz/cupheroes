@@ -152,3 +152,26 @@ export function moveOffsetAt(now: number, standX: number, moveBeat?: MoveBeat): 
   }
   return standX;
 }
+
+/**
+ * An actor's displayed health at `now`, from the current round's attack
+ * beats that hit it (`hitBeats`, sorted ascending by `startAt` -- `resolveRound`
+ * always produces them in that order). The store commits a round's *final*
+ * health the instant it resolves, all at once, but a round can hit the same
+ * actor several beats apart (every enemy gets its own beat against the
+ * hero) -- reading the store value straight would make the health bar drop
+ * for a hit that hasn't visually landed yet. Each beat already carries both
+ * its own damage and the health it left behind, so the health *before* that
+ * beat is just `targetHealthAfter + damage` -- no separate "health before
+ * this round" snapshot needs to be threaded through.
+ */
+export function healthAt(now: number, hitBeats: readonly AttackBeat[], fallbackHealth: number): number {
+  'worklet';
+  let health = fallbackHealth;
+  for (const beat of hitBeats) {
+    const t = timelineProgress(now, beat.startAt, Timing.healthTween);
+    const before = beat.targetHealthAfter + beat.damage;
+    health = lerp(before, beat.targetHealthAfter, t);
+  }
+  return health;
+}
