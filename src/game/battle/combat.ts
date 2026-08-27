@@ -16,8 +16,10 @@ export type CombatEnemy = {
   /** Position within the pack -- picks the slot x and, for melee, which approach-line x it's closing on. */
   slotIndex: number;
   slotX: number;
-  /** Current on-screen x -- `slotX` until a melee enemy starts closing the distance (see `meleeStepX`);
-   * what every render layer reads. */
+  /** How many of this enemy's own turns it has spent closing in (melee only, capped at `MELEE_APPROACH_TURNS`). */
+  steps: number;
+  /** Current on-screen x, derived from `slotX`/`steps` via `meleeStepX` for a melee enemy -- what every
+   * render layer reads. */
   standX: number;
   /** Absolute game-clock time this enemy took its lethal hit, if dead -- persists across later rounds
    * (unlike a round's beats) so the death fade can't reset once a *different* enemy's round comes along. */
@@ -118,9 +120,10 @@ export function resolveRound(hero: CombatHero, enemies: readonly CombatEnemy[], 
   for (const enemy of turnOrder) {
     if (!enemy.alive || heroDefeated) continue;
 
-    if (enemy.spec.range === 'melee' && !meleeHasArrived(enemy.standX, enemy.slotIndex)) {
+    if (enemy.spec.range === 'melee' && !meleeHasArrived(enemy.steps)) {
       const fromX = enemy.standX;
-      enemy.standX = meleeStepX(enemy.standX, enemy.slotIndex);
+      enemy.steps += 1;
+      enemy.standX = meleeStepX(enemy.slotX, enemy.slotIndex, enemy.steps);
       beats.push({ kind: 'move', actorId: enemy.id, fromX, toX: enemy.standX, startAt: beatStart() });
       continue;
     }

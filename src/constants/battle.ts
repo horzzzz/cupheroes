@@ -180,26 +180,27 @@ export function assignPackSlots(
 // `assignPackSlots`), so only the first entry is load-bearing.
 const MELEE_TARGET_X: readonly number[] = [120, 150, 190];
 
-/** Each of a melee enemy's approach turns closes this fraction of whatever distance is still left -- a
- * visibly large stride early on that tapers off, rather than three equal-sized steps. */
-export const MELEE_STEP_FRACTION = 1 / 3;
-/** Once the remaining gap is this small, the enemy is considered to have arrived and starts attacking instead. */
-export const MELEE_ARRIVAL_EPSILON = 4;
+/** A melee enemy spends exactly this many of its own turns closing the distance before it can attack --
+ * a fixed count (not "however many turns it takes to close the gap"), so the player can read "one more
+ * step and it's in range" the same way for every pack instead of it varying with how far it started. */
+export const MELEE_APPROACH_TURNS = 3;
 
 function meleeTargetX(slotIndex: number): number {
   return MELEE_TARGET_X[slotIndex] ?? MELEE_TARGET_X[MELEE_TARGET_X.length - 1];
 }
 
-/** Whether a melee enemy has closed the distance enough to start attacking instead of stepping closer. */
-export function meleeHasArrived(standX: number, slotIndex: number): boolean {
-  return standX - meleeTargetX(slotIndex) <= MELEE_ARRIVAL_EPSILON;
+/** Whether a melee enemy has taken all its approach steps and should attack instead of stepping closer. */
+export function meleeHasArrived(steps: number): boolean {
+  return steps >= MELEE_APPROACH_TURNS;
 }
 
-/** A melee enemy's on-screen x after one more approach step -- `MELEE_STEP_FRACTION` of its current
- * distance from `meleeTargetX`. A ranged enemy never calls this; it never leaves its slot. */
-export function meleeStepX(standX: number, slotIndex: number): number {
+/** A melee enemy's on-screen x for how many approach steps it's taken so far (1..`MELEE_APPROACH_TURNS`) --
+ * equal-sized steps from its resting `slotX` to `meleeTargetX`, so the last step always lands exactly on
+ * the target regardless of how far the enemy started. A ranged enemy never calls this; it never moves. */
+export function meleeStepX(slotX: number, slotIndex: number, steps: number): number {
   const target = meleeTargetX(slotIndex);
-  return standX - (standX - target) * MELEE_STEP_FRACTION;
+  const t = Math.min(1, steps / MELEE_APPROACH_TURNS);
+  return slotX + (target - slotX) * t;
 }
 
 export type EnemySpec = {

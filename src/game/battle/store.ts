@@ -71,6 +71,7 @@ function spawnPack(wave: number, half: number, packIndex: number, gameTime: numb
       alive: true,
       slotIndex,
       slotX,
+      steps: 0,
       // Nothing has moved yet -- a melee enemy's approach is driven entirely
       // by `resolveRound` closing the gap turn by turn from here.
       standX: slotX,
