@@ -1,56 +1,100 @@
 import { create } from 'zustand';
 
-import { HeroBase, WAVE_COUNT, wavesEnemies } from '@/constants/battle';
+import {
+  HeroBase,
+  Timing,
+  WAVE_COUNT,
+  assignPackSlots,
+  halvesInWave,
+  packVisualScale,
+  wavesEnemies,
+} from '@/constants/battle';
 import { resolveRound, type CombatEnemy, type Round } from '@/game/battle/combat';
 
-export type BattlePhase = 'intro' | 'active' | 'wave-clear' | 'victory' | 'defeat';
+/**
+ * `intro` (hero runs in) -> `enemies-in` (this pack's enemies run in from the
+ * right) -> `active` (rounds resolve) -> `clear` (pack's dead, brief pause)
+ * -> `advancing` (hero walks forward, background pans) -> back to
+ * `enemies-in` for the wave's second half or the next wave's first, or
+ * `victory` once the last wave's last half falls. `defeat` can interrupt
+ * `active` at any round.
+ */
+export type BattlePhase = 'intro' | 'enemies-in' | 'active' | 'clear' | 'advancing' | 'victory' | 'defeat';
 
 type BattleState = {
   phase: BattlePhase;
   wave: number;
+  /** 0-indexed pack within the current wave -- 0 or 1, per `halvesInWave`. */
+  half: number;
+  /** Sequential count of every pack spawned this run, -1 before the first. Drives the background's pan. */
+  packIndex: number;
   heroHealth: number;
   heroMaxHealth: number;
   heroAttack: number;
   heroArmor: number;
   enemies: CombatEnemy[];
-  /** Game-clock time each living enemy's current spawn/pop-in began, keyed by enemy id. */
-  spawnedAt: Record<string, number>;
+  /** Game-clock time each living enemy's run-in began, keyed by enemy id -- staggered per enemy. */
+  enteredAt: Record<string, number>;
   balls: number;
   round: Round | null;
   wavesCompleted: number;
 
-  /** Ends the intro run and spawns wave 1. */
+  /** Ends the intro run and spawns wave 1's first pack. No-op outside 'intro'. */
   beginFirstWave: (gameTime: number) => void;
+  /** Ends the current pack's run-in once every enemy has arrived. No-op outside 'enemies-in'. */
+  finishEntering: (gameTime: number) => void;
   /** Resolves one round of combat. No-op outside the 'active' phase. */
   advanceRound: (gameTime: number) => void;
-  /** Spawns the next wave, or ends the run in victory past the last wave. No-op outside 'wave-clear'. */
-  startNextWave: (gameTime: number) => void;
-  /** Restores full HP and keeps fighting the current wave. No-op outside 'defeat'. */
+  /** Moves on from the pack-clear pause to the hero's walk-forward. No-op outside 'clear'. */
+  startAdvance: (gameTime: number) => void;
+  /** Spawns the wave's other half, the next wave's first pack, or ends the run in victory. No-op outside 'advancing'. */
+  startNextPack: (gameTime: number) => void;
+  /** Restores full HP and keeps fighting the current pack. No-op outside 'defeat'. */
   revive: () => void;
   /** Resets to a fresh intro, e.g. when re-entering the battle screen. */
   reset: () => void;
 };
 
-function spawnWave(wave: number, gameTime: number) {
-  const enemies: CombatEnemy[] = wavesEnemies(wave).map((spec, i) => ({
-    id: `w${wave}-${i}`,
-    spec,
-    health: spec.maxHealth,
-    alive: true,
-  }));
-  const spawnedAt = Object.fromEntries(enemies.map((enemy) => [enemy.id, gameTime]));
-  return { enemies, spawnedAt };
+type PackSpawn = Pick<BattleState, 'phase' | 'wave' | 'half' | 'packIndex' | 'enemies' | 'enteredAt' | 'round'>;
+
+function spawnPack(wave: number, half: number, packIndex: number, gameTime: number): PackSpawn {
+  const specs = wavesEnemies(wave);
+  const scale = packVisualScale(specs.length);
+  const slots = assignPackSlots(specs);
+
+  const enemies: CombatEnemy[] = specs.map((spec, i) => {
+    const { slotIndex, slotX } = slots[i];
+    return {
+      id: `w${wave}-h${half}-${i}`,
+      spec: { ...spec, visualScale: spec.visualScale * scale },
+      health: spec.maxHealth,
+      alive: true,
+      slotIndex,
+      slotX,
+      // Nothing has moved yet -- a melee enemy's approach is driven entirely
+      // by `resolveRound` closing the gap turn by turn from here.
+      standX: slotX,
+    };
+  });
+  // Staggered by final left-to-right position (not composition order) so the
+  // pack reads as entering in a line, not out of visual order.
+  const enteredAt = Object.fromEntries(
+    enemies.map((enemy) => [enemy.id, gameTime + Timing.enemyEnterDelay + enemy.slotIndex * Timing.enemyEnterStagger]),
+  );
+  return { phase: 'enemies-in', wave, half, packIndex, enemies, enteredAt, round: null };
 }
 
 const initialState = {
   phase: 'intro' as BattlePhase,
   wave: 1,
+  half: 0,
+  packIndex: -1,
   heroHealth: HeroBase.maxHealth,
   heroMaxHealth: HeroBase.maxHealth,
   heroAttack: HeroBase.attack,
   heroArmor: HeroBase.armor,
   enemies: [] as CombatEnemy[],
-  spawnedAt: {} as Record<string, number>,
+  enteredAt: {} as Record<string, number>,
   balls: 0,
   round: null as Round | null,
   wavesCompleted: 0,
@@ -60,8 +104,14 @@ export const useBattleStore = create<BattleState>((set, get) => ({
   ...initialState,
 
   beginFirstWave: (gameTime) => {
-    if (get().phase !== 'intro') return;
-    set({ phase: 'active', wave: 1, round: null, ...spawnWave(1, gameTime) });
+    const state = get();
+    if (state.phase !== 'intro') return;
+    set(spawnPack(1, 0, state.packIndex + 1, gameTime));
+  },
+
+  finishEntering: () => {
+    if (get().phase !== 'enemies-in') return;
+    set({ phase: 'active' });
   },
 
   advanceRound: (gameTime) => {
@@ -75,7 +125,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     );
 
     const round: Round = { index: (state.round?.index ?? 0) + 1, startedAt: gameTime, beats: resolution.beats };
-    const nextPhase: BattlePhase = resolution.heroDefeated ? 'defeat' : resolution.waveCleared ? 'wave-clear' : 'active';
+    const nextPhase: BattlePhase = resolution.heroDefeated ? 'defeat' : resolution.waveCleared ? 'clear' : 'active';
 
     set({
       phase: nextPhase,
@@ -83,21 +133,36 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       enemies: resolution.enemiesAfter,
       balls: state.balls + resolution.ballsGained,
       round,
-      wavesCompleted: nextPhase === 'wave-clear' ? state.wavesCompleted + 1 : state.wavesCompleted,
     });
   },
 
-  startNextWave: (gameTime) => {
+  startAdvance: () => {
     const state = get();
-    if (state.phase !== 'wave-clear') return;
+    if (state.phase !== 'clear') return;
+    // Bumping `packIndex` here, not once the walk finishes, is what makes
+    // the background start panning the moment the hero starts walking --
+    // `BattleBackground` keys its pan target directly off this field, and
+    // both it and the hero's run pose share `Timing.packAdvance` as their
+    // duration, so they finish in step too.
+    set({ phase: 'advancing', packIndex: state.packIndex + 1 });
+  },
 
-    if (state.wave >= WAVE_COUNT) {
-      set({ phase: 'victory' });
+  startNextPack: (gameTime) => {
+    const state = get();
+    if (state.phase !== 'advancing') return;
+
+    const isLastHalf = state.half + 1 >= halvesInWave(state.wave);
+    if (!isLastHalf) {
+      set(spawnPack(state.wave, state.half + 1, state.packIndex, gameTime));
       return;
     }
 
-    const wave = state.wave + 1;
-    set({ phase: 'active', wave, round: null, ...spawnWave(wave, gameTime) });
+    if (state.wave >= WAVE_COUNT) {
+      set({ phase: 'victory', wavesCompleted: state.wavesCompleted + 1 });
+      return;
+    }
+
+    set({ wavesCompleted: state.wavesCompleted + 1, ...spawnPack(state.wave + 1, 0, state.packIndex, gameTime) });
   },
 
   revive: () => {
@@ -108,3 +173,11 @@ export const useBattleStore = create<BattleState>((set, get) => ({
 
   reset: () => set({ ...initialState }),
 }));
+
+/** 0..1 fraction of the current wave cleared -- both halves' worth, not just the pack on screen. */
+export function waveProgress(state: Pick<BattleState, 'wave' | 'half' | 'enemies'>): number {
+  const total = halvesInWave(state.wave);
+  const killedFraction =
+    state.enemies.length > 0 ? state.enemies.filter((enemy) => !enemy.alive).length / state.enemies.length : 0;
+  return Math.min(1, (state.half + killedFraction) / total);
+}

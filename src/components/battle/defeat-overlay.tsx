@@ -6,10 +6,13 @@ import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { WAVE_COUNT } from '@/constants/battle';
 
-const BANNER_ICON = require('@/assets/images/battle/banner-ribbon.webp');
+// Exported straight from Figma (node 1:1769) with the "YOU LOST..." lettering
+// already baked into the art -- see the project memory on exporting banners
+// with their text, not as a blank ribbon.
+const BANNER_ICON = require('@/assets/images/battle/banner-defeat.webp');
 
-const BANNER_WIDTH = 176;
-const BANNER_HEIGHT = 46;
+const BANNER_WIDTH = 210;
+const BANNER_HEIGHT = 70;
 
 /**
  * Shown when the hero falls -- Figma node 1:1704. That screen is an
@@ -22,10 +25,7 @@ export function DefeatOverlay({ wavesCompleted, onContinue }: { wavesCompleted: 
     <Pressable style={styles.root} onPress={onContinue}>
       <View style={styles.backdrop} />
 
-      <View style={styles.banner}>
-        <Image source={BANNER_ICON} style={StyleSheet.absoluteFill} contentFit="contain" />
-        <GameText style={styles.bannerText}>You lost...</GameText>
-      </View>
+      <Image source={BANNER_ICON} style={styles.banner} contentFit="contain" />
 
       <GameText style={styles.subtitle}>Waves completed:</GameText>
       <GameText style={styles.wavesText}>{`${wavesCompleted}/${WAVE_COUNT}`}</GameText>
@@ -46,15 +46,6 @@ const styles = StyleSheet.create({
   banner: {
     width: BANNER_WIDTH,
     height: BANNER_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-4.28deg' }],
-  },
-  bannerText: {
-    fontFamily: Fonts.titan,
-    fontSize: 22,
-    color: '#ff5757',
-    textTransform: 'uppercase',
   },
   subtitle: {
     fontFamily: Fonts.titan,

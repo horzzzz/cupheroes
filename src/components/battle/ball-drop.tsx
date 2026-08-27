@@ -2,7 +2,7 @@ import { Atlas, Skia, type SkRSXform, type SkRect } from '@shopify/react-native-
 import { useEffect, useMemo, useRef } from 'react';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
-import { Timing, enemySlotPositions } from '@/constants/battle';
+import { ENEMY_SLOT_Y, Timing } from '@/constants/battle';
 import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 import { easeOutCubic, timelineProgress } from '@/game/easing';
@@ -17,11 +17,9 @@ import type { SpriteSet } from '@/game/sprites';
  * one-shot-per-round-assignment pattern doesn't change, only POOL_SIZE does.
  */
 
-const POOL_SIZE = 24;
-const BALLS_PER_KILL = 6;
+const POOL_SIZE = 8;
 const HUD_BALL_TARGET = { x: 37, y: 48 };
 const ARC_HEIGHT = 60;
-const KILL_STAGGER = 0.03;
 const BALL_FLIGHT_SIZE = 16;
 
 type BallSlot = { startAt: number; fromX: number; fromY: number; toX: number; toY: number; spin: number };
@@ -36,7 +34,6 @@ type BallDropProps = {
 };
 
 export function BallDrop({ clock, sprites }: BallDropProps) {
-  const enemies = useBattleStore((s) => s.enemies);
   const round = useBattleStore((s) => s.round);
   const ball = sprites.ball;
 
@@ -47,27 +44,24 @@ export function BallDrop({ clock, sprites }: BallDropProps) {
   // most), not something that needs to run every frame.
   useEffect(() => {
     if (!round) return;
-    const lethalHits = round.beats.filter((beat) => beat.lethal && beat.targetId !== 'hero');
+    const lethalHits = round.beats.filter((beat) => beat.kind === 'attack' && beat.lethal && beat.targetId !== 'hero');
     if (lethalHits.length === 0) return;
 
-    const positions = enemySlotPositions(enemies.length);
     const next = slots.value.slice();
 
+    // One ball per kill.
     for (const beat of lethalHits) {
-      const enemyIndex = enemies.findIndex((enemy) => enemy.id === beat.targetId);
-      const pos = positions[enemyIndex] ?? { x: 0, y: 0 };
-      for (let i = 0; i < BALLS_PER_KILL; i += 1) {
-        const slotIndex = cursor.current % POOL_SIZE;
-        cursor.current += 1;
-        next[slotIndex] = {
-          startAt: beat.startAt + i * KILL_STAGGER,
-          fromX: pos.x + 45,
-          fromY: pos.y + 45,
-          toX: HUD_BALL_TARGET.x,
-          toY: HUD_BALL_TARGET.y,
-          spin: slotIndex * 0.7 + i,
-        };
-      }
+      if (beat.kind !== 'attack') continue;
+      const slotIndex = cursor.current % POOL_SIZE;
+      cursor.current += 1;
+      next[slotIndex] = {
+        startAt: beat.startAt,
+        fromX: beat.targetX + 45,
+        fromY: ENEMY_SLOT_Y + 45,
+        toX: HUD_BALL_TARGET.x,
+        toY: HUD_BALL_TARGET.y,
+        spin: slotIndex * 0.7,
+      };
     }
     slots.value = next;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per new round object, not on every store field

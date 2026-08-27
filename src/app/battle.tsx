@@ -12,11 +12,11 @@ import { HealthBars } from '@/components/battle/health-bars';
 import { VictoryOverlay } from '@/components/battle/victory-overlay';
 import { GameText } from '@/components/ui/game-text';
 import { PauseModal } from '@/components/menu/pause-modal';
-import { BattleFrame } from '@/constants/battle';
+import { BattleFrame, halvesInWave } from '@/constants/battle';
 import { Colors } from '@/constants/theme';
 import { Fonts } from '@/constants/fonts';
 import { useBattleScheduler } from '@/game/battle/use-battle-scheduler';
-import { useBattleStore } from '@/game/battle/store';
+import { useBattleStore, waveProgress } from '@/game/battle/store';
 import { useGameClock } from '@/game/clock';
 import { useDesignScale } from '@/hooks/use-design-scale';
 
@@ -56,7 +56,7 @@ export default function BattleScreen() {
   const phase = useBattleStore((s) => s.phase);
   const wave = useBattleStore((s) => s.wave);
   const balls = useBattleStore((s) => s.balls);
-  const enemies = useBattleStore((s) => s.enemies);
+  const progress = useBattleStore(waveProgress);
   const wavesCompleted = useBattleStore((s) => s.wavesCompleted);
   const reset = useBattleStore((s) => s.reset);
 
@@ -74,8 +74,6 @@ export default function BattleScreen() {
     clock.timeScale.value = fast ? 2 : 1;
   }, [fast, clock.timeScale]);
 
-  const waveProgress = enemies.length > 0 ? enemies.filter((e) => !e.alive).length / enemies.length : 0;
-
   const goHome = () => router.back();
 
   const handleRetry = () => {
@@ -88,14 +86,15 @@ export default function BattleScreen() {
       <View style={{ flex: 1, width: BattleFrame.width * scale, alignSelf: 'center' }}>
         <View style={{ width: BattleFrame.width * scale, height: BattleFrame.canvasHeight * scale }}>
           <BattleCanvas clock={clock} scale={scale} onReady={setCanvasReady} />
-          <HealthBars scale={scale} />
+          <HealthBars clock={clock} scale={scale} />
           <DamageNumbers clock={clock} scale={scale} />
           <BattleHud
             scale={scale}
             insetTop={insets.top}
             balls={balls}
             wave={wave}
-            waveProgress={waveProgress}
+            waveProgress={progress}
+            hasMidCheckpoint={halvesInWave(wave) > 1}
             fast={fast}
             onToggleFast={() => setFast((f) => !f)}
             onPause={() => setPaused(true)}

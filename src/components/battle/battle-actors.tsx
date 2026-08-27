@@ -2,9 +2,9 @@ import { Image } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
 import { useDerivedValue } from 'react-native-reanimated';
 
-import { HERO_OFFSCREEN_X, HERO_POS, Timing, enemySlotPositions } from '@/constants/battle';
+import { ENEMY_ENTER_X, ENEMY_SLOT_Y, HERO_OFFSCREEN_X, HERO_POS, Timing } from '@/constants/battle';
 import { computeActorLayout, type ActorLayoutParams } from '@/game/battle/actor-layout';
-import type { Round } from '@/game/battle/combat';
+import type { AttackBeat, MoveBeat, Round } from '@/game/battle/combat';
 import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 import { poseImages, spriteDesignSize, type ActorKey, type SpriteSet } from '@/game/sprites';
@@ -20,8 +20,10 @@ type SingleActorProps = {
   facing: 1 | -1;
   bobPhase: number;
   visualScale?: number;
-  spawnedAt?: number;
-  runIn?: { fromX: number; duration: number };
+  walking?: boolean;
+  runIn?: { fromX: number; startAt: number; duration: number };
+  /** Game-clock time this actor died, if it's dead -- see `computeActorLayout`'s `deadAt`. */
+  deadAt?: number;
 };
 
 /** One hero or enemy: picks its pose from the current round's beats and lets `computeActorLayout` do the rest. */
@@ -36,8 +38,9 @@ function SingleActor({
   facing,
   bobPhase,
   visualScale = 1,
-  spawnedAt,
+  walking,
   runIn,
+  deadAt,
 }: SingleActorProps) {
   const pose = poseImages(sprites, actorKey);
   const idleSize = useMemo(() => (pose.idle ? spriteDesignSize(pose.idle) : { width: 0, height: 0 }), [pose.idle]);
@@ -46,9 +49,11 @@ function SingleActor({
     [pose.attack, idleSize],
   );
 
-  const attackBeat = round?.beats.find((beat) => beat.attackerId === id);
-  const hitBeat = round?.beats.find((beat) => beat.targetId === id);
-  const deathBeat = hitBeat?.lethal ? hitBeat : undefined;
+  const attackBeat = round?.beats.find(
+    (beat): beat is AttackBeat => beat.kind === 'attack' && beat.attackerId === id,
+  );
+  const hitBeat = round?.beats.find((beat): beat is AttackBeat => beat.kind === 'attack' && beat.targetId === id);
+  const moveBeat = round?.beats.find((beat): beat is MoveBeat => beat.kind === 'move' && beat.actorId === id);
 
   const params: Omit<ActorLayoutParams, 'now'> = {
     slotX,
@@ -56,7 +61,7 @@ function SingleActor({
     facing,
     bobPhase,
     visualScale,
-    spawnedAt,
+    walking,
     runIn,
     idleWidth: idleSize.width,
     idleHeight: idleSize.height,
@@ -64,7 +69,8 @@ function SingleActor({
     attackHeight: attackSize.height,
     attackBeat,
     hitBeat,
-    deathBeat,
+    moveBeat,
+    deadAt,
   };
 
   // Recomputed once per round (whenever this component re-renders with new
@@ -92,13 +98,12 @@ type BattleActorsProps = {
   sprites: SpriteSet;
 };
 
-/** Renders the hero and every enemy currently in the wave, positioned per the battle screen's slot layout. */
+/** Renders the hero and every enemy of the current pack, positioned per the battle screen's slot layout. */
 export function BattleActors({ clock, sprites }: BattleActorsProps) {
+  const phase = useBattleStore((s) => s.phase);
   const enemies = useBattleStore((s) => s.enemies);
   const round = useBattleStore((s) => s.round);
-  const spawnedAt = useBattleStore((s) => s.spawnedAt);
-
-  const slots = enemySlotPositions(enemies.length);
+  const enteredAt = useBattleStore((s) => s.enteredAt);
 
   return (
     <>
@@ -112,7 +117,8 @@ export function BattleActors({ clock, sprites }: BattleActorsProps) {
         slotY={HERO_POS.y}
         facing={1}
         bobPhase={0}
-        runIn={{ fromX: HERO_OFFSCREEN_X, duration: Timing.heroEnter }}
+        walking={phase === 'advancing'}
+        runIn={{ fromX: HERO_OFFSCREEN_X, startAt: 0, duration: Timing.heroEnter }}
       />
       {enemies.map((enemy, i) => (
         <SingleActor
@@ -122,12 +128,13 @@ export function BattleActors({ clock, sprites }: BattleActorsProps) {
           sprites={sprites}
           clock={clock}
           round={round}
-          slotX={slots[i]?.x ?? 0}
-          slotY={slots[i]?.y ?? 0}
+          slotX={enemy.standX}
+          slotY={ENEMY_SLOT_Y}
           facing={-1}
           bobPhase={(i + 1) * 1.3}
           visualScale={enemy.spec.visualScale}
-          spawnedAt={spawnedAt[enemy.id]}
+          runIn={{ fromX: ENEMY_ENTER_X, startAt: enteredAt[enemy.id] ?? 0, duration: Timing.enemyEnter }}
+          deadAt={enemy.diedAt}
         />
       ))}
     </>

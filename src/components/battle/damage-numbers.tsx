@@ -4,7 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, type SharedValue } from 're
 
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
-import { Timing, enemySlotPositions } from '@/constants/battle';
+import { Timing } from '@/constants/battle';
 import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 import { clamp01, timelineProgress } from '@/game/easing';
@@ -34,7 +34,6 @@ type DamageNumbersProps = {
 
 export function DamageNumbers({ clock, scale }: DamageNumbersProps) {
   const round = useBattleStore((s) => s.round);
-  const enemies = useBattleStore((s) => s.enemies);
 
   const slots = useSharedValue<NumberSlot[]>(Array.from({ length: POOL_SIZE }, idleSlot));
   const [texts, setTexts] = useState<string[]>(() => Array(POOL_SIZE).fill(''));
@@ -42,25 +41,20 @@ export function DamageNumbers({ clock, scale }: DamageNumbersProps) {
 
   useEffect(() => {
     if (!round) return;
-    const positions = enemySlotPositions(enemies.length);
     const nextSlots = slots.value.slice();
     const nextTexts = [...texts];
+    let beatIndex = 0;
 
-    round.beats.forEach((beat, beatIndex) => {
-      const target =
-        beat.targetId === 'hero'
-          ? { x: 70, y: 290 }
-          : (() => {
-              const idx = enemies.findIndex((e) => e.id === beat.targetId);
-              const pos = positions[idx] ?? { x: 0, y: 0 };
-              return { x: pos.x + 45, y: 290 };
-            })();
+    for (const beat of round.beats) {
+      if (beat.kind !== 'attack') continue;
+      const x = beat.targetX + 45;
 
       const slotIndex = cursor.current % POOL_SIZE;
       cursor.current += 1;
-      nextSlots[slotIndex] = { startAt: beat.startAt, x: target.x + (beatIndex % 2 === 0 ? -6 : 6), y: target.y };
+      nextSlots[slotIndex] = { startAt: beat.startAt, x: x + (beatIndex % 2 === 0 ? -6 : 6), y: 290 };
       nextTexts[slotIndex] = `-${beat.damage}`;
-    });
+      beatIndex += 1;
+    }
 
     slots.value = nextSlots;
     setTexts(nextTexts);

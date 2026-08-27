@@ -1,11 +1,14 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { moveOffsetAt } from '@/game/battle/actor-layout';
+import type { MoveBeat } from '@/game/battle/combat';
+import type { GameClock } from '@/game/clock';
 
 /**
  * One health bar, positioned in absolute design points and scaled like the
@@ -13,7 +16,9 @@ import { Colors } from '@/constants/theme';
  * as plain RN views rather than Skia -- the bar sits at a fixed slot
  * position regardless of the sprite's own idle bob/lunge, so there's no
  * per-frame sync needed with the canvas, just a width tween on health
- * changes.
+ * changes. `left` alone is read off the game clock every frame (via
+ * `moveOffsetAt`) so a melee enemy's bar rides along with its approach
+ * instead of snapping to the new slot a beat early.
  */
 
 const BAR_HEIGHT = 16;
@@ -27,7 +32,11 @@ const HERO_FILL: [string, string] = ['#0dff00', '#00b421'];
 const ENEMY_FILL: [string, string] = ['#ff0000', '#b40000'];
 
 type HealthBarProps = {
-  x: number;
+  clock: GameClock;
+  /** Resting/target x -- what `moveOffsetAt` falls back to once `moveBeat` (if any) has finished. */
+  standX: number;
+  /** Constant nudge applied after `moveOffsetAt` (e.g. centering an enemy bar under its narrower box). */
+  offsetX?: number;
   y: number;
   width: number;
   scale: number;
@@ -35,9 +44,26 @@ type HealthBarProps = {
   maxHealth: number;
   variant: 'hero' | 'enemy';
   armor?: number;
+  moveBeat?: MoveBeat;
+  /** Game-clock time this bar should pop in -- e.g. an entering enemy's run-in finish, so the bar
+   * doesn't sit at the resting slot while the sprite is still visibly running in from off-screen. */
+  revealAt?: number;
 };
 
-export function HealthBar({ x, y, width, scale, health, maxHealth, variant, armor }: HealthBarProps) {
+export function HealthBar({
+  clock,
+  standX,
+  offsetX = 0,
+  y,
+  width,
+  scale,
+  health,
+  maxHealth,
+  variant,
+  armor,
+  moveBeat,
+  revealAt,
+}: HealthBarProps) {
   const ratio = useSharedValue(maxHealth > 0 ? health / maxHealth : 0);
 
   useEffect(() => {
@@ -45,9 +71,15 @@ export function HealthBar({ x, y, width, scale, health, maxHealth, variant, armo
   }, [health, maxHealth, ratio]);
 
   const fillStyle = useAnimatedStyle(() => ({ width: `${ratio.value * 100}%` }));
+  const left = useDerivedValue(() => (moveOffsetAt(clock.time.value, standX, moveBeat) + offsetX) * scale);
+  const positionStyle = useAnimatedStyle(() => ({
+    left: left.value,
+    opacity: revealAt === undefined || clock.time.value >= revealAt ? 1 : 0,
+  }));
 
   return (
-    <View style={{ position: 'absolute', left: x * scale, top: y * scale, width: width * scale, height: BAR_HEIGHT * scale }}>
+    <Animated.View
+      style={[{ position: 'absolute', top: y * scale, width: width * scale, height: BAR_HEIGHT * scale }, positionStyle]}>
       <View
         style={{
           position: 'absolute',
@@ -111,6 +143,6 @@ export function HealthBar({ x, y, width, scale, health, maxHealth, variant, armo
           <GameText style={{ fontFamily: Fonts.nunito, fontSize: 10 * scale, color: Colors.white }}>{armor}</GameText>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }

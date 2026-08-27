@@ -26,23 +26,41 @@ export function useBattleScheduler(clock: GameClock) {
         case 'intro':
           store.beginFirstWave(gameTime);
           break;
+        case 'enemies-in':
+          store.finishEntering(gameTime);
+          break;
         case 'active':
           store.advanceRound(gameTime);
           break;
-        case 'wave-clear':
-          store.startNextWave(gameTime);
+        case 'clear':
+          store.startAdvance(gameTime);
+          break;
+        case 'advancing':
+          store.startNextPack(gameTime);
           break;
         default:
           break; // victory / defeat: nothing to schedule until the player acts
       }
 
-      const after = useBattleStore.getState().phase;
+      const after = useBattleStore.getState();
       nextEventAt.value =
-        after === 'active'
-          ? gameTime + Timing.turnInterval
-          : after === 'wave-clear'
-            ? gameTime + Timing.waveAdvance
-            : Infinity;
+        after.phase === 'enemies-in'
+          ? gameTime + Timing.enemyEnterDelay + Math.max(0, after.enemies.length - 1) * Timing.enemyEnterStagger + Timing.enemyEnter
+          : after.phase === 'active'
+            ? // One `beatStagger` per beat the round just produced (hero's hit plus
+              // one per living enemy), so the next round's first beat starts exactly
+              // one more stagger after the last -- same gap as between any two beats
+              // *within* a round. A fixed pause here (independent of pack size)
+              // used to run short for a full 3-enemy pack, so the next round's hero
+              // beat started while the previous round's last beat was still
+              // mid-animation -- an attack (or an enemy's approach step) would get
+              // cut off and jump to its resting spot instead of finishing the tween.
+              gameTime + Math.max(1, after.round?.beats.length ?? 1) * Timing.beatStagger
+            : after.phase === 'clear'
+              ? gameTime + Timing.packClear
+              : after.phase === 'advancing'
+                ? gameTime + Timing.packAdvance
+                : Infinity;
     },
     [nextEventAt],
   );
@@ -51,6 +69,14 @@ export function useBattleScheduler(clock: GameClock) {
     () => clock.time.value,
     (time) => {
       if (time >= nextEventAt.value) {
+        // Lock the deadline out immediately, on the UI thread, before
+        // `tick` even reaches the JS thread. `runOnJS` is a same-frame
+        // dispatch, not a same-frame *call* -- without this, this reaction
+        // keeps re-evaluating true (nextEventAt hasn't moved yet) on every
+        // subsequent frame until `tick` actually runs and reschedules it,
+        // firing several rounds back to back in one instant (multiple hero
+        // shots, several enemy steps) instead of one.
+        nextEventAt.value = Infinity;
         runOnJS(tick)(time);
       }
     },

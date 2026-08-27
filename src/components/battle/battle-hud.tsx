@@ -6,18 +6,17 @@ import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { WAVE_COUNT } from '@/constants/battle';
+import { WaveProgress } from '@/components/battle/wave-progress';
 
 const BALL_ICON = require('@/assets/images/battle/icon-ball.webp');
 const PAUSE_ICON = require('@/assets/images/battle/icon-pause.webp');
 const X2_ICON = require('@/assets/images/battle/icon-x2.webp');
-const CUP_ICON = require('@/assets/images/battle/icon-cup.webp');
 
 const ICON_SIZE = 36;
-const CUP_SIZE = 24;
 const TOP = 30;
 const ROW_TO_WAVE_GAP = 30;
-const PROGRESS_WIDTH = 194;
-const PROGRESS_HEIGHT = 18;
+/** Gap from the wave title's baseline to the progress bar -- tuned so the bar's top lands on the Figma frame's y=138. */
+const TITLE_TO_PROGRESS_GAP = 15;
 
 /**
  * Overlaid on top of the battle canvas -- Figma node 1:1182. One absolute
@@ -32,6 +31,7 @@ export function BattleHud({
   balls,
   wave,
   waveProgress,
+  hasMidCheckpoint,
   fast,
   onToggleFast,
   onPause,
@@ -43,8 +43,10 @@ export function BattleHud({
   insetTop: number;
   balls: number;
   wave: number;
-  /** 0..1 fraction of the current wave's enemies cleared. */
+  /** 0..1 fraction of the current wave cleared -- see `waveProgress` in the battle store. */
   waveProgress: number;
+  /** False on the boss wave -- a single pack has no midpoint to mark. */
+  hasMidCheckpoint: boolean;
   fast: boolean;
   onToggleFast: () => void;
   onPause: () => void;
@@ -82,7 +84,7 @@ export function BattleHud({
       </View>
 
       <View
-        style={{ alignItems: 'center', marginTop: ROW_TO_WAVE_GAP * scale, gap: 12 * scale }}
+        style={{ alignItems: 'center', marginTop: ROW_TO_WAVE_GAP * scale, gap: TITLE_TO_PROGRESS_GAP * scale }}
         pointerEvents="none">
         <GameText
           style={{
@@ -94,27 +96,7 @@ export function BattleHud({
           {`Wave ${Math.min(wave, WAVE_COUNT)}/${WAVE_COUNT}`}
         </GameText>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', width: PROGRESS_WIDTH * scale }}>
-          <View
-            style={{
-              flex: 1,
-              height: PROGRESS_HEIGHT * scale,
-              borderRadius: (PROGRESS_HEIGHT / 2) * scale,
-              backgroundColor: Colors.trackBackground,
-              overflow: 'hidden',
-            }}>
-            <View style={{ width: `${Math.round(waveProgress * 100)}%`, height: '100%', backgroundColor: '#facd04' }} />
-          </View>
-          <Image
-            source={CUP_ICON}
-            style={{
-              width: CUP_SIZE * scale,
-              height: CUP_SIZE * scale,
-              marginLeft: -(CUP_SIZE / 2) * scale,
-            }}
-            contentFit="contain"
-          />
-        </View>
+        <WaveProgress scale={scale} progress={waveProgress} hasMidCheckpoint={hasMidCheckpoint} />
       </View>
     </View>
   );
