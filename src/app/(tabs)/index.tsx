@@ -26,7 +26,7 @@ export default function HomeScreen() {
         />
         <ChapterHeader />
         <HeroShowcase />
-        <FightButton />
+        <FightButton onPress={() => router.push('/battle')} />
       </ScreenColumn>
 
       <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
