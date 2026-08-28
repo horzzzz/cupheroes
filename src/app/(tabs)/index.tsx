@@ -10,10 +10,9 @@ import { SettingsModal } from '@/components/menu/settings-modal';
 import { ScreenColumn } from '@/components/ui/screen-column';
 
 /**
- * Main hub screen — Figma node 1:26. Buttons are not wired up yet, values
- * are hardcoded. Background and the bottom nav live in `(tabs)/_layout.tsx`
- * so they're shared with the shop/upgrades screens; `ScreenColumn` caps the
- * content and clears the status bar.
+ * Main hub screen — Figma node 1:26. Background and the bottom nav live in
+ * `(tabs)/_layout.tsx` so they're shared with the shop/upgrades screens;
+ * `ScreenColumn` caps the content and clears the status bar.
  */
 export default function HomeScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);

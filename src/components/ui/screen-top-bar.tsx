@@ -3,6 +3,7 @@ import { type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { BalancePill } from '@/components/ui/balance-pill';
+import { useEconomyStore } from '@/game/economy/store';
 
 const COIN_ICON = require('@/assets/images/main/icon-coin.webp');
 const GEM_ICON = require('@/assets/images/main/icon-gem.webp');
@@ -13,8 +14,6 @@ const ICON_SIZE = 36;
 const CHILDREN_GAP = 20;
 
 type ScreenTopBarProps = {
-  coins: number;
-  gems: number;
   onOpenSettings?: () => void;
   /** Extra HUD under the balance row — the upgrades screen's level bar. */
   children?: ReactNode;
@@ -23,9 +22,13 @@ type ScreenTopBarProps = {
 /**
  * Balance pills plus settings, shared by the shop (Figma nodes 1:183/1:190/
  * 1:179) and upgrades (1:1143/1:1150/1:1139) screens. Unlike the hub's
- * `TopBar` there is no wheel/daily-reward column.
+ * `TopBar` there is no wheel/daily-reward column. Reads the wallet straight
+ * off `useEconomyStore` -- this is app HUD, not a reusable display primitive.
  */
-export function ScreenTopBar({ coins, gems, onOpenSettings, children }: ScreenTopBarProps) {
+export function ScreenTopBar({ onOpenSettings, children }: ScreenTopBarProps) {
+  const coins = useEconomyStore((s) => s.coins);
+  const gems = useEconomyStore((s) => s.gems);
+
   return (
     <View style={{ paddingHorizontal: 15 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

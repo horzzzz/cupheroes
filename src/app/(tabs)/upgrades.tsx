@@ -8,13 +8,8 @@ import { ScreenTopBar } from '@/components/ui/screen-top-bar';
 import { LevelProgress } from '@/components/upgrades/level-progress';
 import { UpgradeLadder } from '@/components/upgrades/upgrade-ladder';
 import { MainScreen } from '@/constants/theme';
-
-// Hardcoded placeholder values — real data wiring comes later.
-const COINS = 150;
-const GEMS = 12;
-const PLAYER_LEVEL = 1;
-const PLAYER_LEVEL_PROGRESS = 0.61;
-const UNLOCKED_UPGRADE_LEVELS = 1;
+import { levelFromXp } from '@/game/economy/level';
+import { useEconomyStore } from '@/game/economy/store';
 
 // Vignette over the top of the ladder — Figma node 1:1126, less the 30pt the
 // design spends above the balance row (the status bar inset covers that).
@@ -23,9 +18,8 @@ const SCRIM_COLOR = 'rgba(25,0,137,0.78)';
 
 /**
  * Upgrades screen — Figma node 1:1102. A 100-level ladder of attack/health/
- * defence nodes, virtualised because it is 300 rungs long; purchases aren't
- * wired up yet. The background and the bottom nav live in
- * `(tabs)/_layout.tsx`.
+ * defence nodes, virtualised because it is 300 rungs long. The background
+ * and the bottom nav live in `(tabs)/_layout.tsx`.
  *
  * Unlike the hub and shop this screen does not use `ScreenColumn`: the ladder
  * runs the full width and up behind the status bar, so its locked-stretch
@@ -36,10 +30,21 @@ export default function UpgradesScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const insets = useSafeAreaInsets();
 
+  const coins = useEconomyStore((s) => s.coins);
+  const xp = useEconomyStore((s) => s.xp);
+  const ownedUpgrades = useEconomyStore((s) => s.ownedUpgrades);
+  const buyUpgrade = useEconomyStore((s) => s.buyUpgrade);
+  const { level, progress } = levelFromXp(xp);
+
   return (
     <>
       <View style={{ flex: 1 }}>
-        <UpgradeLadder unlockedLevels={UNLOCKED_UPGRADE_LEVELS} coins={COINS} />
+        <UpgradeLadder
+          unlockedLevels={level}
+          coins={coins}
+          ownedUpgrades={ownedUpgrades}
+          onBuy={(step) => buyUpgrade(step)}
+        />
 
         <LinearGradient
           colors={[SCRIM_COLOR, 'transparent']}
@@ -64,11 +69,8 @@ export default function UpgradesScreen() {
             alignItems: 'center',
           }}>
           <View style={{ width: '100%', maxWidth: MainScreen.frameWidth }}>
-            <ScreenTopBar
-              coins={COINS}
-              gems={GEMS}
-              onOpenSettings={() => setSettingsVisible(true)}>
-              <LevelProgress level={PLAYER_LEVEL} progress={PLAYER_LEVEL_PROGRESS} />
+            <ScreenTopBar onOpenSettings={() => setSettingsVisible(true)}>
+              <LevelProgress level={level} progress={progress} />
             </ScreenTopBar>
           </View>
         </View>

@@ -9,13 +9,12 @@ import { SpinButton } from '@/components/wheel/spin-button';
 import { WheelBackground } from '@/components/wheel/wheel-background';
 import { WheelHeader } from '@/components/wheel/wheel-header';
 import { WheelResultOverlay } from '@/components/wheel/wheel-result-overlay';
+import { FREE_SPIN_COOLDOWN_MS } from '@/constants/economy';
 import { MainScreen } from '@/constants/theme';
+import { sectorReward } from '@/game/economy/rewards';
+import { useEconomyStore } from '@/game/economy/store';
 
 const CLOSE_ICON = require('@/assets/images/menu/icon-close.webp');
-
-// No backend/reward system yet — a spin just starts this local cooldown
-// (real persistence and balance wiring come later, see the plan doc).
-const FREE_SPIN_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 function formatCountdown(ms: number) {
   const total = Math.max(0, Math.ceil(ms / 1000));
@@ -30,7 +29,11 @@ export default function WheelScreen() {
   const insets = useSafeAreaInsets();
   const wheelRef = useRef<FortuneWheelHandle>(null);
 
-  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const lastFreeSpinAt = useEconomyStore((s) => s.lastFreeSpinAt);
+  const startFreeSpin = useEconomyStore((s) => s.startFreeSpin);
+  const grant = useEconomyStore((s) => s.grant);
+
+  const cooldownUntil = lastFreeSpinAt === null ? null : lastFreeSpinAt + FREE_SPIN_COOLDOWN_MS;
   const [now, setNow] = useState(() => Date.now());
   const [result, setResult] = useState<WheelSector | null>(null);
   const [spinning, setSpinning] = useState(false);
@@ -46,14 +49,18 @@ export default function WheelScreen() {
   const handleSpinEnd = useCallback((sector: WheelSector) => {
     setSpinning(false);
     setResult(sector);
-  }, []);
+    grant(sectorReward(sector));
+  }, [grant]);
 
   const startSpin = useCallback((startsCooldown: boolean) => {
     if (spinning || result) return;
     setSpinning(true);
-    if (startsCooldown) setCooldownUntil(Date.now() + FREE_SPIN_COOLDOWN_MS);
+    // `startsCooldown === false` is the rewarded-ad spin -- TODO(ads): show
+    // a rewarded ad before this actually fires; it already bypasses the
+    // cooldown same as before.
+    if (startsCooldown) startFreeSpin(Date.now());
     wheelRef.current?.spin();
-  }, [spinning, result]);
+  }, [spinning, result, startFreeSpin]);
 
   return (
     <>

@@ -28,6 +28,7 @@ const LOCKED_TINT = 'rgba(255,27,255,0.6)';
 type UpgradeRowProps = {
   step: UpgradeStep;
   locked: boolean;
+  owned: boolean;
   selected: boolean;
   /** Draws the fence that closes off the locked stretch above this row. */
   showGate: boolean;
@@ -55,6 +56,7 @@ type UpgradeRowProps = {
 export const UpgradeRow = memo(function UpgradeRow({
   step,
   locked,
+  owned,
   selected,
   showGate,
   showBadge,
@@ -100,6 +102,7 @@ export const UpgradeRow = memo(function UpgradeRow({
         kind={step.kind}
         value={step.value}
         locked={locked}
+        owned={owned}
         onPress={() => onSelect(step.id)}
         style={{
           position: 'absolute',
@@ -156,6 +159,7 @@ export const UpgradeRow = memo(function UpgradeRow({
         <UpgradePopup
           step={step}
           locked={locked}
+          owned={owned}
           requiredLevel={requiredPlayerLevel(step.level)}
           coins={coins}
           onBuy={() => onBuy(step)}

@@ -2,6 +2,7 @@ import { View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ConnectorBar } from '@/components/shop/connector-bar';
 import { GemPack } from '@/components/shop/gem-pack';
+import type { GemPackItem } from '@/constants/economy';
 
 const WIDTH = 340;
 const HEIGHT = 220;
@@ -20,12 +21,6 @@ const PIPES = [
   { orientation: 'vertical', left: 161, top: 50 },
   { orientation: 'horizontal', left: 170, top: 161 },
 ] as const;
-
-export type GemPackItem = {
-  amount: number;
-  art: number;
-  locked?: boolean;
-};
 
 type GemPackGridProps = {
   packs: readonly GemPackItem[];

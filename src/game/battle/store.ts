@@ -11,8 +11,12 @@ import {
   wavesEnemies,
 } from '@/constants/battle';
 import { SKILLS, skillValue } from '@/constants/skills';
+import { applyUpgrades } from '@/constants/upgrades';
+import type { Reward } from '@/constants/economy';
 import { resolveBomb, resolveRound, type Beat, type CombatEnemy, type Round } from '@/game/battle/combat';
+import { runReward } from '@/game/battle/rewards';
 import { aggregateSkills, rollOffers, type OwnedSkills, type SkillOffer } from '@/game/battle/skills';
+import { useEconomyStore } from '@/game/economy/store';
 
 /**
  * `intro` (hero runs in) -> `enemies-in` (this pack's enemies run in from the
@@ -52,6 +56,8 @@ type BattleState = {
   half: number;
   /** Sequential count of every pack spawned this run, -1 before the first. Drives the background's pan. */
   packIndex: number;
+  /** `HeroBase` folded with owned upgrade-ladder steps -- snapshotted once per run by `reset`, not live-reactive to mid-run purchases (there aren't any). */
+  heroBase: typeof HeroBase;
   heroHealth: number;
   heroMaxHealth: number;
   heroAttack: number;
@@ -69,6 +75,8 @@ type BattleState = {
   offers: SkillOffer[] | null;
   round: Round | null;
   wavesCompleted: number;
+  /** Coins/gems/xp granted for the run that just ended -- null mid-run. Read by the victory/defeat overlays. */
+  lastReward: Reward | null;
 
   /** Ends the intro run and spawns wave 1's first pack. No-op outside 'intro'. */
   beginFirstWave: (gameTime: number) => void;
@@ -122,37 +130,53 @@ function spawnPack(wave: number, half: number, packIndex: number, gameTime: numb
   return { phase: 'enemies-in', wave, half, packIndex, enemies, enteredAt, round: null };
 }
 
-/** Hero stats derived from `HeroBase` + owned skills -- recomputed on every purchase, never mutated in place. */
-function heroStatsFrom(owned: OwnedSkills) {
+/** Hero stats derived from a meta base (`HeroBase` + owned upgrade-ladder steps) + owned run skills -- recomputed on every purchase, never mutated in place. */
+function heroStatsFrom(base: typeof HeroBase, owned: OwnedSkills) {
   const agg = aggregateSkills(owned);
   return {
-    heroMaxHealth: Math.round(HeroBase.maxHealth * agg.maxHealthMult),
-    heroAttack: Math.round(HeroBase.attack * agg.attackMult),
-    heroArmor: HeroBase.armor + agg.bonusArmor,
+    heroMaxHealth: Math.round(base.maxHealth * agg.maxHealthMult),
+    heroAttack: Math.round(base.attack * agg.attackMult),
+    heroArmor: base.armor + agg.bonusArmor,
   };
 }
 
-const initialState = {
-  phase: 'intro' as BattlePhase,
-  wave: 1,
-  half: 0,
-  packIndex: -1,
-  heroHealth: HeroBase.maxHealth,
-  heroMaxHealth: HeroBase.maxHealth,
-  heroAttack: HeroBase.attack,
-  heroArmor: HeroBase.armor,
-  enemies: [] as CombatEnemy[],
-  enteredAt: {} as Record<string, number>,
-  wavePot: 0,
-  balls: 0,
-  ownedSkills: {} as OwnedSkills,
-  offers: null as SkillOffer[] | null,
-  round: null as Round | null,
-  wavesCompleted: 0,
-};
+/** Snapshot of `HeroBase` folded with whatever upgrade-ladder steps are owned right now. */
+function currentHeroBase(): typeof HeroBase {
+  return applyUpgrades(HeroBase, useEconomyStore.getState().ownedUpgrades);
+}
+
+/**
+ * A brand-new run's starting state, re-derived from whatever upgrade-ladder
+ * steps are owned right now -- not a static snapshot -- so a purchase made
+ * in the upgrades tab shows up the next time `reset()` runs (battle.tsx
+ * calls it on every mount).
+ */
+function freshState() {
+  const heroBase = currentHeroBase();
+  return {
+    phase: 'intro' as BattlePhase,
+    wave: 1,
+    half: 0,
+    packIndex: -1,
+    heroBase,
+    heroHealth: heroBase.maxHealth,
+    heroMaxHealth: heroBase.maxHealth,
+    heroAttack: heroBase.attack,
+    heroArmor: heroBase.armor,
+    enemies: [] as CombatEnemy[],
+    enteredAt: {} as Record<string, number>,
+    wavePot: 0,
+    balls: 0,
+    ownedSkills: {} as OwnedSkills,
+    offers: null as SkillOffer[] | null,
+    round: null as Round | null,
+    wavesCompleted: 0,
+    lastReward: null as Reward | null,
+  };
+}
 
 export const useBattleStore = create<BattleState>((set, get) => ({
-  ...initialState,
+  ...freshState(),
 
   beginFirstWave: (gameTime) => {
     const state = get();
@@ -187,12 +211,22 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     const round: Round = { index: (state.round?.index ?? 0) + 1, startedAt: gameTime, beats: resolution.beats };
     const nextPhase: BattlePhase = resolution.heroDefeated ? 'defeat' : resolution.waveCleared ? 'clear' : 'active';
 
+    // Defeat pays out for whatever waves were fully cleared before this one --
+    // the wave in progress never counts, same as the old summary screen's
+    // "waves completed" readout.
+    let lastReward = state.lastReward;
+    if (nextPhase === 'defeat') {
+      lastReward = runReward(state.wavesCompleted, false);
+      useEconomyStore.getState().grant(lastReward);
+    }
+
     set({
       phase: nextPhase,
       heroHealth: resolution.heroHealthAfter,
       enemies: resolution.enemiesAfter,
       wavePot: state.wavePot + resolution.ballsGained,
       round,
+      lastReward,
     });
   },
 
@@ -218,7 +252,10 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     }
 
     if (state.wave >= WAVE_COUNT) {
-      set({ phase: 'victory', wavesCompleted: state.wavesCompleted + 1 });
+      const wavesCompleted = state.wavesCompleted + 1;
+      const reward = runReward(wavesCompleted, true);
+      useEconomyStore.getState().grant(reward);
+      set({ phase: 'victory', wavesCompleted, lastReward: reward });
       return;
     }
 
@@ -246,7 +283,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     if (!offer || offer.price > state.balls) return;
 
     const ownedSkills: OwnedSkills = { ...state.ownedSkills, [offer.id]: offer.level };
-    const stats = heroStatsFrom(ownedSkills);
+    const stats = heroStatsFrom(state.heroBase, ownedSkills);
     // A `maxHealth` buy raises the ceiling; lift current HP by the same delta
     // so "+100% max health" reads as a gain, not a halved bar.
     const healthDelta = Math.max(0, stats.heroMaxHealth - state.heroMaxHealth);
@@ -314,7 +351,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     set({ phase: 'active', heroHealth: state.heroMaxHealth, round: null });
   },
 
-  reset: () => set({ ...initialState, ownedSkills: {}, offers: null }),
+  reset: () => set({ ...freshState() }),
 }));
 
 function syntheticRound(prev: Round | null, gameTime: number, beats: Beat[]): Round {

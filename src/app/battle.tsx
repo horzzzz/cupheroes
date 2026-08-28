@@ -69,6 +69,7 @@ export default function BattleScreen() {
   const balls = useBattleStore(displayBalls);
   const progress = useBattleStore(waveProgress);
   const wavesCompleted = useBattleStore((s) => s.wavesCompleted);
+  const lastReward = useBattleStore((s) => s.lastReward);
   const reset = useBattleStore((s) => s.reset);
 
   // Start every visit to this screen from a clean run.
@@ -168,8 +169,10 @@ export default function BattleScreen() {
 
       {phase === 'draft' && <SkillDraftOverlay clock={clock} scale={safeScale} />}
 
-      {phase === 'victory' && <VictoryOverlay onCollect={goHome} />}
-      {phase === 'defeat' && <DefeatOverlay wavesCompleted={wavesCompleted} onContinue={goHome} />}
+      {phase === 'victory' && <VictoryOverlay reward={lastReward ?? {}} onCollect={goHome} />}
+      {phase === 'defeat' && (
+        <DefeatOverlay wavesCompleted={wavesCompleted} reward={lastReward ?? {}} onContinue={goHome} />
+      )}
 
       <PauseModal visible={paused} onClose={() => setPaused(false)} onHome={goHome} onRetry={handleRetry} />
     </View>

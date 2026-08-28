@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { formatCompact } from '@/utils/format-number';
 
 const PILL_WIDTH = 100;
 const PILL_HEIGHT = 36;
@@ -24,7 +25,7 @@ export function BalancePill({ icon, value }: { icon: number; value: number }) {
       <Image source={icon} style={{ width: 24, height: 24 }} contentFit="contain" />
       <GameText
         style={{ marginLeft: 8, fontFamily: Fonts.nunito, fontSize: 18, color: Colors.white }}>
-        {value}
+        {formatCompact(value)}
       </GameText>
     </View>
   );

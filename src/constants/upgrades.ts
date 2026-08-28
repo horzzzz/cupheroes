@@ -44,11 +44,13 @@ function damageAt(level: number): number {
 }
 
 /**
- * Player level that unlocks an upgrade level. Placeholder rule: the design's
- * popup copy asks for level 10 to unlock upgrade level 2, so it steps by ten.
+ * Player level that unlocks an upgrade level. One-to-one: ladder level N
+ * opens at player level N. The design's popup copy originally asked for a
+ * 10x step, but with a real XP curve behind player level that leaves the
+ * ladder dead for the game's first few hours -- see the economy plan.
  */
 export function requiredPlayerLevel(level: number): number {
-  return (level - 1) * 10;
+  return level;
 }
 
 /**
@@ -72,3 +74,32 @@ export const UPGRADE_STEPS: readonly UpgradeStep[] = (() => {
 
   return steps;
 })();
+
+const STEPS_BY_ID: Record<string, UpgradeStep> = Object.fromEntries(
+  UPGRADE_STEPS.map((step) => [step.id, step]),
+);
+
+/**
+ * Hero base stats after every owned upgrade-ladder step is folded in --
+ * `base` is `HeroBase` (kept out of this file to avoid an upgrades <->
+ * battle constants dependency; the caller passes it in). Draft skills in
+ * `game/battle/skills.ts` multiply on top of this, not on `HeroBase` alone.
+ */
+export function applyUpgrades<T extends { maxHealth: number; attack: number; armor: number }>(
+  base: T,
+  ownedUpgrades: Record<string, true>,
+): T {
+  let maxHealth = base.maxHealth;
+  let attack = base.attack;
+  let armor = base.armor;
+
+  for (const id of Object.keys(ownedUpgrades)) {
+    const step = STEPS_BY_ID[id];
+    if (!step) continue;
+    if (step.kind === 'health') maxHealth += step.value;
+    else if (step.kind === 'attack') attack += step.value;
+    else armor += step.value;
+  }
+
+  return { ...base, maxHealth, attack, armor };
+}

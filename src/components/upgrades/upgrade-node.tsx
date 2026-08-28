@@ -36,6 +36,8 @@ type UpgradeNodeProps = {
   kind: UpgradeKind;
   value: number;
   locked?: boolean;
+  /** Already bought -- draws a gold checkmark badge over the corner. No dedicated Figma asset yet, drawn in code as a placeholder (see the economy plan). */
+  owned?: boolean;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
 };
@@ -49,6 +51,7 @@ export function UpgradeNode({
   kind,
   value,
   locked,
+  owned,
   style,
   onPress,
 }: UpgradeNodeProps) {
@@ -95,6 +98,26 @@ export function UpgradeNode({
           +{formatCompact(value)}
         </GameText>
       </View>
+
+      {owned ? (
+        <View
+          style={{
+            position: 'absolute',
+            top: -4,
+            right: -4,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: '#ffd52c',
+            borderWidth: 2,
+            borderColor: Colors.white,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          pointerEvents="none">
+          <GameText style={{ fontFamily: Fonts.titan, fontSize: 16, color: '#0a3061' }}>✓</GameText>
+        </View>
+      ) : null}
     </Pressable>
   );
 }

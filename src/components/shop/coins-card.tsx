@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import type { CoinsPack } from '@/constants/economy';
 
 const GEM_ICON = require('@/assets/images/main/icon-gem.webp');
 const PILL_ASSET = require('@/assets/images/shop/button-pill-blue.webp');
@@ -35,12 +36,6 @@ const PANEL_MID_GREEN = '#09bd00';
 const PANEL_BOTTOM_GREEN = '#9aff5c';
 const PANEL_GLOW = '#ffd52c';
 const PRICE_UNAFFORDABLE = '#ff4e4e';
-
-export type CoinsPack = {
-  amount: number;
-  price: number;
-  art: number;
-};
 
 type CoinsCardProps = {
   pack: CoinsPack;

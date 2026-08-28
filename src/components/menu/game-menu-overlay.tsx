@@ -15,6 +15,8 @@ type GameMenuOverlayProps = {
   visible: boolean;
   onClose: () => void;
   title: string;
+  /** Shown just above the footer, e.g. a pre-confirm warning -- absent by default. */
+  notice?: ReactNode;
   footer: ReactNode;
 };
 
@@ -39,7 +41,7 @@ function SettingRow({ label, initialValue }: { label: string; initialValue: numb
  * continue button vs. home/retry/continue icons), so callers pass the
  * footer in and this owns everything else.
  */
-export function GameMenuOverlay({ visible, onClose, title, footer }: GameMenuOverlayProps) {
+export function GameMenuOverlay({ visible, onClose, title, notice, footer }: GameMenuOverlayProps) {
   // Absolutely-positioned children ignore a SafeAreaView's own inset
   // padding (they align to its outer edge, not the padded content edge),
   // so the close button needs the top inset added in by hand or it sits
@@ -80,6 +82,7 @@ export function GameMenuOverlay({ visible, onClose, title, footer }: GameMenuOve
               </View>
             </View>
 
+            {notice ? <View style={styles.notice}>{notice}</View> : null}
             <View style={styles.footer}>{footer}</View>
           </View>
         </SafeAreaView>
@@ -119,6 +122,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   links: { alignItems: 'center', marginTop: 20, gap: 20 },
+  notice: { alignItems: 'center', marginBottom: 20, paddingHorizontal: 10 },
   link: {
     fontFamily: Fonts.titan,
     fontSize: 18,

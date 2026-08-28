@@ -3,21 +3,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, View } from 'react-native';
 
 import { BalancePill } from '@/components/ui/balance-pill';
+import { LevelBadge } from '@/components/upgrades/level-badge';
 import { Colors } from '@/constants/theme';
 import { localDateKey } from '@/game/daily/rewards';
 import { getDailyStatus, useDailyStore } from '@/game/daily/store';
+import { levelFromXp } from '@/game/economy/level';
+import { useEconomyStore } from '@/game/economy/store';
 
 const COIN_ICON = require('@/assets/images/main/icon-coin.webp');
 const GEM_ICON = require('@/assets/images/main/icon-gem.webp');
 const SETTINGS_ICON = require('@/assets/images/main/icon-settings.webp');
 const WHEEL_ICON = require('@/assets/images/main/icon-wheel.webp');
 const DAILY_REWARD_ICON = require('@/assets/images/main/icon-daily-reward.webp');
-const LEVEL_BADGE = require('@/assets/images/main/icon-level-badge.webp');
-
-// Hardcoded placeholder values — real data wiring comes later.
-const COINS = 150;
-const GEMS = 12;
-const LEVEL_PROGRESS = 0.6;
 
 const ICON_SIZE = 36;
 const LEVEL_BADGE_SIZE = 36;
@@ -36,6 +33,11 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
   const claimedDay = useDailyStore((s) => s.claimedDay);
   const dailyReady =
     getDailyStatus({ lastClaimDate, claimedDay }, localDateKey(new Date())).phase === 'ready';
+
+  const coins = useEconomyStore((s) => s.coins);
+  const gems = useEconomyStore((s) => s.gems);
+  const xp = useEconomyStore((s) => s.xp);
+  const { level, progress } = levelFromXp(xp);
 
   return (
     <View>
@@ -80,16 +82,12 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
 
       <View style={{ gap: 20 }}>
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <BalancePill icon={COIN_ICON} value={COINS} />
-          <BalancePill icon={GEM_ICON} value={GEMS} />
+          <BalancePill icon={COIN_ICON} value={coins} />
+          <BalancePill icon={GEM_ICON} value={gems} />
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Image
-            source={LEVEL_BADGE}
-            style={{ width: LEVEL_BADGE_SIZE, height: LEVEL_BADGE_SIZE, zIndex: 2 }}
-            contentFit="contain"
-          />
+          <LevelBadge level={level} size={LEVEL_BADGE_SIZE} style={{ zIndex: 2 }} />
           <View
             style={{
               marginLeft: -PROGRESS_OVERLAP,
@@ -110,7 +108,7 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
                 left: 0,
                 top: 0,
                 bottom: 0,
-                width: `${LEVEL_PROGRESS * 100}%`,
+                width: `${progress * 100}%`,
                 borderRadius: PROGRESS_HEIGHT / 2,
               }}
             />

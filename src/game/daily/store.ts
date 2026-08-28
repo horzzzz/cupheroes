@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { addDays, rewardForDay } from '@/game/daily/rewards';
+import { useEconomyStore } from '@/game/economy/store';
 
 /**
  * Persisted daily-bonus streak (Figma nodes 1:781 / 1:958).
@@ -50,8 +51,7 @@ export const useDailyStore = create<DailyState>()(
       claim: (today) => {
         const status = getDailyStatus(get(), today);
         if (status.phase !== 'ready') return;
-        // TODO(economy): award rewardForDay(status.nextDay) coins once a wallet store exists.
-        void rewardForDay;
+        useEconomyStore.getState().grant({ coins: rewardForDay(status.nextDay) });
         set({ lastClaimDate: today, claimedDay: status.nextDay });
       },
     }),

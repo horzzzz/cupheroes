@@ -39,6 +39,8 @@ const PRICE_UNAFFORDABLE = '#ff4e4e';
 type UpgradePopupProps = {
   step: UpgradeStep;
   locked?: boolean;
+  /** Already bought -- shows an inert "OWNED" pill instead of the buy button. */
+  owned?: boolean;
   /** Player level the step asks for; only shown while it is locked. */
   requiredLevel?: number;
   coins: number;
@@ -51,6 +53,7 @@ type UpgradePopupProps = {
 export function UpgradePopup({
   step,
   locked,
+  owned,
   requiredLevel,
   coins,
   style,
@@ -141,40 +144,55 @@ export function UpgradePopup({
           </View>
 
           <Pressable
-            onPress={onBuy}
+            onPress={owned ? undefined : onBuy}
             onPressIn={() => setPressed(true)}
             onPressOut={() => setPressed(false)}
+            disabled={owned}
             style={{
               position: 'absolute',
               left: inset((POPUP_WIDTH - BUTTON_WIDTH) / 2),
               top: inset(BUTTON_TOP),
               width: BUTTON_WIDTH,
               height: BUTTON_HEIGHT,
-              transform: [{ scale: pressed ? 0.96 : 1 }],
+              opacity: owned ? 0.5 : 1,
+              transform: [{ scale: pressed && !owned ? 0.96 : 1 }],
             }}>
             <Image source={PILL_ASSET} style={StyleSheet.absoluteFill} contentFit="fill" />
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: PRICE_ROW_TOP,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 5,
-              }}
-              pointerEvents="none">
-              <Image source={COIN_ICON} style={{ width: 24, height: 24 }} contentFit="contain" />
-              <GameText
+            {owned ? (
+              <View
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                pointerEvents="none">
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <GameText
+                    style={{ fontFamily: Fonts.titan, fontSize: 16, color: Colors.white }}>
+                    Owned
+                  </GameText>
+                </View>
+              </View>
+            ) : (
+              <View
                 style={{
-                  fontFamily: Fonts.titan,
-                  fontSize: 18,
-                  color: affordable ? Colors.white : PRICE_UNAFFORDABLE,
-                }}>
-                {formatCompact(step.cost)}
-              </GameText>
-            </View>
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: PRICE_ROW_TOP,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 5,
+                }}
+                pointerEvents="none">
+                <Image source={COIN_ICON} style={{ width: 24, height: 24 }} contentFit="contain" />
+                <GameText
+                  style={{
+                    fontFamily: Fonts.titan,
+                    fontSize: 18,
+                    color: affordable ? Colors.white : PRICE_UNAFFORDABLE,
+                  }}>
+                  {formatCompact(step.cost)}
+                </GameText>
+              </View>
+            )}
           </Pressable>
         </>
       )}

@@ -19,6 +19,8 @@ type UpgradeLadderProps = {
   /** Upgrade levels the player has reached; everything above is locked. */
   unlockedLevels: number;
   coins: number;
+  /** Owned step ids -- see `useEconomyStore`. */
+  ownedUpgrades: Record<string, true>;
   onBuy?: (step: UpgradeStep) => void;
 };
 
@@ -37,7 +39,7 @@ const contentStyle = { paddingTop: PADDING_TOP, paddingBottom: PADDING_BOTTOM };
  * first) so the list opens scrolled to its end, where level 1 sits, and the
  * player climbs upwards from there.
  */
-export function UpgradeLadder({ unlockedLevels, coins, onBuy }: UpgradeLadderProps) {
+export function UpgradeLadder({ unlockedLevels, coins, ownedUpgrades, onBuy }: UpgradeLadderProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Locked steps are the high levels, so they are exactly the head of the list.
@@ -55,6 +57,7 @@ export function UpgradeLadder({ unlockedLevels, coins, onBuy }: UpgradeLadderPro
       <UpgradeRow
         step={item}
         locked={index < lockedCount}
+        owned={!!ownedUpgrades[item.id]}
         selected={item.id === selectedId}
         showGate={index === lockedCount && lockedCount > 0}
         showBadge={item.kind === 'attack'}
@@ -66,7 +69,7 @@ export function UpgradeLadder({ unlockedLevels, coins, onBuy }: UpgradeLadderPro
         onBuy={handleBuy}
       />
     ),
-    [coins, handleBuy, handleClose, handleSelect, lockedCount, selectedId],
+    [coins, handleBuy, handleClose, handleSelect, lockedCount, ownedUpgrades, selectedId],
   );
 
   return (
@@ -79,7 +82,7 @@ export function UpgradeLadder({ unlockedLevels, coins, onBuy }: UpgradeLadderPro
       initialNumToRender={INITIAL_ROWS}
       maxToRenderPerBatch={INITIAL_ROWS}
       windowSize={WINDOW_SIZE}
-      extraData={selectedId}
+      extraData={[selectedId, ownedUpgrades]}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={contentStyle}
     />

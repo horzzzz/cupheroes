@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -13,6 +13,8 @@ import { LoaderBackground } from '@/components/loader/loader-background';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { useDailyStore } from '@/game/daily/store';
+import { useEconomyStore } from '@/game/economy/store';
 import { useDesignScale } from '@/hooks/use-design-scale';
 
 const LOGO_ASSET = require('@/assets/images/loader/logo.webp');
@@ -41,11 +43,23 @@ export function LoadingScreen({ onDone }: LoadingScreenProps) {
   const { width, sx, rawSy: sy, rawS: s } = useDesignScale();
   const progress = useSharedValue(0);
 
+  // `onDone` only fires once BOTH the 2s progress animation has finished AND
+  // the persisted economy/daily stores have hydrated -- a spend or grant
+  // that lands before hydration finishes gets silently clobbered by the
+  // merge that hydration performs when it completes.
+  const [animDone, setAnimDone] = useState(false);
+  const economyHydrated = useEconomyStore((s) => s.hydrated);
+  const dailyHydrated = useDailyStore((s) => s.hydrated);
+
   useEffect(() => {
     progress.value = withTiming(100, { duration: 2000 }, (finished) => {
-      if (finished) runOnJS(onDone)();
+      if (finished) runOnJS(setAnimDone)(true);
     });
-  }, [onDone, progress]);
+  }, [progress]);
+
+  useEffect(() => {
+    if (animDone && economyHydrated && dailyHydrated) onDone();
+  }, [animDone, economyHydrated, dailyHydrated, onDone]);
 
   const fillStyle = useAnimatedStyle(() => ({
     width: `${progress.value}%`,
