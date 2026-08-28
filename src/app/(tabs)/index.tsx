@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 
+import { DailyBonusOverlay } from '@/components/daily/daily-bonus-overlay';
 import { ChapterHeader } from '@/components/main/chapter-header';
 import { FightButton } from '@/components/main/fight-button';
 import { HeroShowcase } from '@/components/main/hero-showcase';
@@ -16,6 +17,7 @@ import { ScreenColumn } from '@/components/ui/screen-column';
  */
 export default function HomeScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [dailyVisible, setDailyVisible] = useState(false);
 
   return (
     <>
@@ -23,6 +25,7 @@ export default function HomeScreen() {
         <TopBar
           onOpenSettings={() => setSettingsVisible(true)}
           onOpenWheel={() => router.push('/wheel')}
+          onOpenDaily={() => setDailyVisible(true)}
         />
         <ChapterHeader />
         <HeroShowcase />
@@ -30,6 +33,7 @@ export default function HomeScreen() {
       </ScreenColumn>
 
       <SettingsModal visible={settingsVisible} onClose={() => setSettingsVisible(false)} />
+      <DailyBonusOverlay visible={dailyVisible} onClose={() => setDailyVisible(false)} />
     </>
   );
 }

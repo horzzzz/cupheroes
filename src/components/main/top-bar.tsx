@@ -4,6 +4,8 @@ import { Pressable, View } from 'react-native';
 
 import { BalancePill } from '@/components/ui/balance-pill';
 import { Colors } from '@/constants/theme';
+import { localDateKey } from '@/game/daily/rewards';
+import { getDailyStatus, useDailyStore } from '@/game/daily/store';
 
 const COIN_ICON = require('@/assets/images/main/icon-coin.webp');
 const GEM_ICON = require('@/assets/images/main/icon-gem.webp');
@@ -26,9 +28,15 @@ const PROGRESS_OVERLAP = 18;
 type TopBarProps = {
   onOpenSettings?: () => void;
   onOpenWheel?: () => void;
+  onOpenDaily?: () => void;
 };
 
-export function TopBar({ onOpenSettings, onOpenWheel }: TopBarProps) {
+export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps) {
+  const lastClaimDate = useDailyStore((s) => s.lastClaimDate);
+  const claimedDay = useDailyStore((s) => s.claimedDay);
+  const dailyReady =
+    getDailyStatus({ lastClaimDate, claimedDay }, localDateKey(new Date())).phase === 'ready';
+
   return (
     <View>
       <View style={{ position: 'absolute', right: 0, gap: 20 }}>
@@ -46,11 +54,28 @@ export function TopBar({ onOpenSettings, onOpenWheel }: TopBarProps) {
             contentFit="contain"
           />
         </Pressable>
-        <Image
-          source={DAILY_REWARD_ICON}
-          style={{ width: ICON_SIZE, height: ICON_SIZE }}
-          contentFit="contain"
-        />
+        <Pressable onPress={onOpenDaily}>
+          <Image
+            source={DAILY_REWARD_ICON}
+            style={{ width: ICON_SIZE, height: ICON_SIZE }}
+            contentFit="contain"
+          />
+          {dailyReady && (
+            <View
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 12,
+                height: 12,
+                borderRadius: 6,
+                backgroundColor: '#FF3B30',
+                borderWidth: 2,
+                borderColor: Colors.white,
+              }}
+            />
+          )}
+        </Pressable>
       </View>
 
       <View style={{ gap: 20 }}>
