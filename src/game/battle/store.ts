@@ -18,8 +18,21 @@ import { resolveRound, type CombatEnemy, type Round } from '@/game/battle/combat
  * `enemies-in` for the wave's second half or the next wave's first, or
  * `victory` once the last wave's last half falls. `defeat` can interrupt
  * `active` at any round.
+ *
+ * `plinko` is the between-waves interlude: once a new wave's first pack has
+ * run in (`finishEntering` with `half === 0 && wave > 1`), combat holds here
+ * -- the battle screen pans the camera down to the pachinko board -- until
+ * `resumeFromPlinko` releases it into `active`.
  */
-export type BattlePhase = 'intro' | 'enemies-in' | 'active' | 'clear' | 'advancing' | 'victory' | 'defeat';
+export type BattlePhase =
+  | 'intro'
+  | 'enemies-in'
+  | 'active'
+  | 'clear'
+  | 'advancing'
+  | 'plinko'
+  | 'victory'
+  | 'defeat';
 
 type BattleState = {
   phase: BattlePhase;
@@ -49,6 +62,8 @@ type BattleState = {
   startAdvance: (gameTime: number) => void;
   /** Spawns the wave's other half, the next wave's first pack, or ends the run in victory. No-op outside 'advancing'. */
   startNextPack: (gameTime: number) => void;
+  /** Ends the between-waves pachinko interlude and starts the fight. No-op outside 'plinko'. */
+  resumeFromPlinko: () => void;
   /** Restores full HP and keeps fighting the current pack. No-op outside 'defeat'. */
   revive: () => void;
   /** Resets to a fresh intro, e.g. when re-entering the battle screen. */
@@ -111,7 +126,15 @@ export const useBattleStore = create<BattleState>((set, get) => ({
   },
 
   finishEntering: () => {
-    if (get().phase !== 'enemies-in') return;
+    const state = get();
+    if (state.phase !== 'enemies-in') return;
+    // Every wave after the first opens with the pachinko interlude, once its
+    // first pack has finished running in. The battle screen watches for this
+    // phase, pans down to the board, and calls `resumeFromPlinko` when done.
+    if (state.half === 0 && state.wave > 1) {
+      set({ phase: 'plinko' });
+      return;
+    }
     set({ phase: 'active' });
   },
 
@@ -164,6 +187,11 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     }
 
     set({ wavesCompleted: state.wavesCompleted + 1, ...spawnPack(state.wave + 1, 0, state.packIndex, gameTime) });
+  },
+
+  resumeFromPlinko: () => {
+    if (get().phase !== 'plinko') return;
+    set({ phase: 'active' });
   },
 
   revive: () => {

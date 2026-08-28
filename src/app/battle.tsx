@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BattleCanvas } from '@/components/battle/battle-canvas';
@@ -12,42 +13,51 @@ import { HealthBars } from '@/components/battle/health-bars';
 import { VictoryOverlay } from '@/components/battle/victory-overlay';
 import { GameText } from '@/components/ui/game-text';
 import { PauseModal } from '@/components/menu/pause-modal';
+import { PlinkoScene } from '@/components/plinko/plinko-scene';
 import { BattleFrame, halvesInWave } from '@/constants/battle';
 import { Colors } from '@/constants/theme';
 import { Fonts } from '@/constants/fonts';
 import { useBattleScheduler } from '@/game/battle/use-battle-scheduler';
 import { useBattleStore, waveProgress } from '@/game/battle/store';
 import { useGameClock } from '@/game/clock';
+import { usePlinkoInterlude } from '@/game/plinko/use-plinko-interlude';
+import { usePlinkoWorld } from '@/game/plinko/world';
 import { useDesignScale } from '@/hooks/use-design-scale';
 
 /** How far the solid-color panel below the canvas rides up over it (Figma node 1:1182: canvas ends at 484, the panel starts at 454). */
 const JOURNEY_OVERLAP = 30;
 
+/** Deck 1's fill colour behind the pachinko board (Figma node 1:1917's darkest base tone). */
+const PLINKO_DECK_BG = '#241009';
+
 /**
- * The battle screen -- Figma node 1:1182. The scene block (canvas + health
- * bars + HUD, which all share the canvas's own coordinate space and can't
- * be flex children of each other -- Skia doesn't do flexbox) sits at a
- * fixed design width/height; everything below it is a normal flex column,
- * not more absolute offsets from the screen's top.
+ * The battle screen -- Figma node 1:1182 -- plus the between-waves pachinko
+ * interlude (node 1:1916). The two live as a vertical two-deck stack: deck 0
+ * is the fight, deck 1 the pachinko board directly below it. `usePlinkoInterlude`
+ * owns the camera and slides the stack down to deck 1 while the battle store
+ * sits in its `plinko` phase, then back up when the board clears.
+ *
+ * The scene block (canvas + health bars, which share the canvas's own
+ * coordinate space and can't be flex children of each other -- Skia doesn't
+ * do flexbox) sits at a fixed design width/height; everything below it is a
+ * normal flex column.
  *
  * Full-bleed, not `SafeAreaView`-padded: the sky and the green "journey"
- * panel are the screen's actual background, so they must reach under the
- * notch and the home indicator like the loader screen's art does (see the
- * raw/safe split in `useDesignScale`) -- padding the whole scene down from
- * the insets instead would expose the root view's flat color as bars top
- * and bottom. Only the HUD's own top offset needs `insets.top`, to keep its
- * buttons clear of the notch.
+ * panel are the screen's actual background and must reach under the notch and
+ * home indicator. Only the HUD's own top offset needs `insets.top`.
  */
 export default function BattleScreen() {
   const clock = useGameClock();
   useBattleScheduler(clock);
   const insets = useSafeAreaInsets();
-  // `sx` (width-only ratio), not `s` (=min(sx,sy), the "contain" factor the
-  // rest of the app uses for sizing content *inside* a full-width column).
-  // The scene here IS the container, so it must be pinned to the device's
-  // actual width -- `s` would leave black bars on any aspect ratio taller
-  // or shorter than the 390x844 mock, exactly what showed up on device.
-  const { sx: scale } = useDesignScale();
+  // `sx` (width-only) for the battle scene -- it IS the container, so it pins
+  // to device width. `rawS` (contain, edge-to-edge) for the pachinko board --
+  // that one can't be cropped (top cup at y=90, receiver at y=814).
+  const { sx: scale, rawS: boardScale, height: deckHeight } = useDesignScale();
+
+  const world = usePlinkoWorld();
+  const { cameraY, releaseThrow, awaitingThrow } = usePlinkoInterlude(clock, world, deckHeight);
+  const deckStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -cameraY.value }] }));
 
   const [canvasReady, setCanvasReady] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -67,6 +77,9 @@ export default function BattleScreen() {
   }, []);
 
   useEffect(() => {
+    // 'plinko' is deliberately absent: the shared clock must keep running so
+    // the pachinko sim ticks and the pan timing holds. The pause button still
+    // freezes everything through `paused`.
     clock.paused.value = paused || phase === 'victory' || phase === 'defeat';
   }, [paused, phase, clock.paused]);
 
@@ -83,46 +96,71 @@ export default function BattleScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={{ flex: 1, width: BattleFrame.width * scale, alignSelf: 'center' }}>
-        <View style={{ width: BattleFrame.width * scale, height: BattleFrame.canvasHeight * scale }}>
-          <BattleCanvas clock={clock} scale={scale} onReady={setCanvasReady} />
-          <HealthBars clock={clock} scale={scale} />
-          <DamageNumbers clock={clock} scale={scale} />
-          <BattleHud
-            scale={scale}
-            insetTop={insets.top}
-            balls={balls}
-            wave={wave}
-            waveProgress={progress}
-            hasMidCheckpoint={halvesInWave(wave) > 1}
-            fast={fast}
-            onToggleFast={() => setFast((f) => !f)}
-            onPause={() => setPaused(true)}
-          />
+      <Animated.View
+        style={[{ position: 'absolute', left: 0, right: 0, top: 0, height: deckHeight * 2 }, deckStyle]}
+        pointerEvents="box-none">
+        {/* deck 0 -- the fight */}
+        <View style={{ height: deckHeight }}>
+          <View style={{ flex: 1, width: BattleFrame.width * scale, alignSelf: 'center' }}>
+            <View style={{ width: BattleFrame.width * scale, height: BattleFrame.canvasHeight * scale }}>
+              <BattleCanvas clock={clock} scale={scale} onReady={setCanvasReady} />
+              <HealthBars clock={clock} scale={scale} />
+              <DamageNumbers clock={clock} scale={scale} />
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+                marginTop: -JOURNEY_OVERLAP * scale,
+                backgroundColor: '#8dbd1b',
+                alignItems: 'center',
+                paddingTop: 110 * scale,
+                paddingBottom: insets.bottom,
+              }}
+              pointerEvents="none">
+              <GameText
+                style={{
+                  fontFamily: Fonts.titan,
+                  fontSize: 24 * scale,
+                  color: Colors.white,
+                  textAlign: 'center',
+                  textTransform: 'uppercase',
+                }}>
+                Journey in progress
+              </GameText>
+            </View>
+          </View>
         </View>
 
-        <View
-          style={{
-            flex: 1,
-            marginTop: -JOURNEY_OVERLAP * scale,
-            backgroundColor: '#8dbd1b',
-            alignItems: 'center',
-            paddingTop: 110 * scale,
-            paddingBottom: insets.bottom,
-          }}
-          pointerEvents="none">
-          <GameText
-            style={{
-              fontFamily: Fonts.titan,
-              fontSize: 24 * scale,
-              color: Colors.white,
-              textAlign: 'center',
-              textTransform: 'uppercase',
-            }}>
-            Journey in progress
-          </GameText>
+        {/* deck 1 -- the pachinko board, mounted only for the interlude so its
+            Skia canvas isn't compositing behind the fight every frame */}
+        <View style={{ height: deckHeight, backgroundColor: PLINKO_DECK_BG, justifyContent: 'center' }}>
+          {phase === 'plinko' && (
+            <PlinkoScene
+              world={world}
+              clock={clock}
+              boardScale={boardScale}
+              awaitingThrow={awaitingThrow}
+              onThrow={releaseThrow}
+            />
+          )}
         </View>
-      </View>
+      </Animated.View>
+
+      {/* HUD floats over both decks -- the pachinko screen has its own (pill +
+          x2 + pause, node 1:1941), so in `plinko` phase we just drop the wave bar. */}
+      <BattleHud
+        scale={scale}
+        insetTop={insets.top}
+        balls={balls}
+        wave={wave}
+        waveProgress={progress}
+        hasMidCheckpoint={halvesInWave(wave) > 1}
+        compact={phase === 'plinko'}
+        fast={fast}
+        onToggleFast={() => setFast((f) => !f)}
+        onPause={() => setPaused(true)}
+      />
 
       {!canvasReady && <BattleLoader />}
 

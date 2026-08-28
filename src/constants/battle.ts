@@ -53,9 +53,9 @@ export const Timing = {
   enemyEnterDelay: 0.35,
   /** Stagger between one entering enemy's run-in and the next. */
   enemyEnterStagger: 0.18,
-  /** Fallback re-arm pause for `useBattleScheduler`'s `wake()` (not currently wired to any UI) --
-   * the 'active' phase's real round-to-round gap is computed from the round's own beat count instead,
-   * see the scheduler. */
+  /** Nominal round-to-round gap. Unused by the scheduler now -- the 'active'
+   * phase's real gap is computed from the round's own beat count (see
+   * `use-battle-scheduler`) -- kept as the reference pacing figure. */
   turnInterval: 3.3,
   /** Gap between beats within a round (hero's hit, then each enemy's in turn)
    * -- wide enough that one attack's lunge-and-return fully finishes and

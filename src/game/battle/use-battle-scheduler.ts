@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { runOnJS, useAnimatedReaction, useSharedValue } from 'react-native-reanimated';
 
 import { Timing } from '@/constants/battle';
@@ -82,13 +82,22 @@ export function useBattleScheduler(clock: GameClock) {
     },
   );
 
-  /** Re-arms the scheduler after a phase change the clock didn't drive (e.g. tapping revive). */
-  const wake = useCallback(
-    (gameTime: number) => {
-      nextEventAt.value = gameTime + Timing.turnInterval;
-    },
+  // Re-arm the scheduler after a phase change the clock didn't drive -- the
+  // pachinko interlude releasing back into 'active' (`resumeFromPlinko`), or a
+  // revive. `nextEventAt = 0` fires the reaction on the next frame; `tick`
+  // then reschedules the real deadline from the phase it finds.
+  useEffect(
+    () =>
+      useBattleStore.subscribe((s, prev) => {
+        if (s.phase === prev.phase) return;
+        const driven =
+          s.phase === 'intro' ||
+          s.phase === 'enemies-in' ||
+          s.phase === 'active' ||
+          s.phase === 'clear' ||
+          s.phase === 'advancing';
+        if (driven && nextEventAt.value === Infinity) nextEventAt.value = 0;
+      }),
     [nextEventAt],
   );
-
-  return { wake };
 }

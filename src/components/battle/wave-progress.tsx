@@ -16,11 +16,14 @@ const CUP_ICON = require('@/assets/images/battle/icon-cup.webp');
  * every side: a 6pt bar plus a Ø14 disc at every checkpoint it's reached.
  * The boss wave is a single pack, so its bar only shows the start and end
  * checkpoints -- no dot to reach halfway through a fight that isn't split.
+ *
+ * The cup at the end IS the terminal marker -- no white dot or red disc is
+ * drawn there, and the fill stops just under the cup's left edge, so neither
+ * the bar's rounded tip nor a disc pokes out past the cup silhouette.
  */
 
 const WIDTH = 194;
 const HEIGHT = 24;
-const TRACK_WIDTH = 190;
 const TRACK_HEIGHT = 10;
 const TRACK_TOP = 7;
 const TRACK_RADIUS = 5;
@@ -36,6 +39,11 @@ const FILL_RADIUS = 3;
 const DISC_SIZE = 14;
 const DISC_TOP = 5;
 const CUP_SIZE = 24;
+/** Right edge for the white track and the red fill -- tucked under the cup's
+ * narrow base so neither rounded tip pokes out past the cup silhouette. The
+ * cup itself is opaque over the rest, so the track visually still reaches it. */
+const BAR_MAX_X = END_X - 6;
+const TRACK_WIDTH = BAR_MAX_X;
 
 const STROKE = { borderWidth: 1, borderColor: Colors.darkPanel } as const;
 
@@ -55,11 +63,13 @@ export function WaveProgress({ scale, progress, hasMidCheckpoint }: WaveProgress
   }, [progress, p]);
 
   const fillStyle = useAnimatedStyle(() => {
-    const leadX = START_X + (END_X - START_X) * p.value;
+    const leadX = Math.min(BAR_MAX_X - 1, START_X + (END_X - START_X) * p.value);
     return { width: Math.max(0, (leadX - FILL_LEFT) * scale) };
   });
 
-  const checkpoints = hasMidCheckpoint ? [START_X, MID_X, END_X] : [START_X, END_X];
+  // The cup is the end marker -- START and (on non-boss waves) the midpoint are
+  // the only drawn dots/discs.
+  const checkpoints = hasMidCheckpoint ? [START_X, MID_X] : [START_X];
 
   return (
     <View style={{ width: WIDTH * scale, height: HEIGHT * scale }}>

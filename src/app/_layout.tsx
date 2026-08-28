@@ -33,7 +33,10 @@ export default function RootLayout() {
       <SafeAreaProvider>
         {phase === 'loading' && <LoadingScreen onDone={handleLoadingDone} />}
         {phase === 'start' && <StartScreen onStart={handleStart} />}
-        {phase === 'app' && <Stack screenOptions={{ headerShown: false }} />}
+        {/* `gestureEnabled: false` -- no edge-swipe-back anywhere: it fights the
+            pachinko aim drag on the battle screen, and every screen has its own
+            explicit way out. */}
+        {phase === 'app' && <Stack screenOptions={{ headerShown: false, gestureEnabled: false }} />}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

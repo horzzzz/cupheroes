@@ -32,6 +32,7 @@ export function BattleHud({
   wave,
   waveProgress,
   hasMidCheckpoint,
+  compact = false,
   fast,
   onToggleFast,
   onPause,
@@ -47,6 +48,8 @@ export function BattleHud({
   waveProgress: number;
   /** False on the boss wave -- a single pack has no midpoint to mark. */
   hasMidCheckpoint: boolean;
+  /** Pachinko interlude: drop the wave title + progress bar, keep only the top row. */
+  compact?: boolean;
   fast: boolean;
   onToggleFast: () => void;
   onPause: () => void;
@@ -83,21 +86,23 @@ export function BattleHud({
         </View>
       </View>
 
-      <View
-        style={{ alignItems: 'center', marginTop: ROW_TO_WAVE_GAP * scale, gap: TITLE_TO_PROGRESS_GAP * scale }}
-        pointerEvents="none">
-        <GameText
-          style={{
-            textTransform: 'uppercase',
-            fontFamily: Fonts.titan,
-            fontSize: 24 * scale,
-            color: Colors.white,
-          }}>
-          {`Wave ${Math.min(wave, WAVE_COUNT)}/${WAVE_COUNT}`}
-        </GameText>
+      {!compact && (
+        <View
+          style={{ alignItems: 'center', marginTop: ROW_TO_WAVE_GAP * scale, gap: TITLE_TO_PROGRESS_GAP * scale }}
+          pointerEvents="none">
+          <GameText
+            style={{
+              textTransform: 'uppercase',
+              fontFamily: Fonts.titan,
+              fontSize: 24 * scale,
+              color: Colors.white,
+            }}>
+            {`Wave ${Math.min(wave, WAVE_COUNT)}/${WAVE_COUNT}`}
+          </GameText>
 
-        <WaveProgress scale={scale} progress={waveProgress} hasMidCheckpoint={hasMidCheckpoint} />
-      </View>
+          <WaveProgress scale={scale} progress={waveProgress} hasMidCheckpoint={hasMidCheckpoint} />
+        </View>
+      )}
     </View>
   );
 }
