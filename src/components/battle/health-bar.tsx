@@ -7,7 +7,7 @@ import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { healthAt, moveOffsetAt } from '@/game/battle/actor-layout';
-import type { AttackBeat, MoveBeat } from '@/game/battle/combat';
+import type { AttackBeat, HealBeat, MoveBeat } from '@/game/battle/combat';
 import type { GameClock } from '@/game/clock';
 
 /**
@@ -48,9 +48,9 @@ type HealthBarProps = {
   variant: 'hero' | 'enemy';
   armor?: number;
   moveBeat?: MoveBeat;
-  /** This round's attack beats that hit this actor, oldest first -- see `healthAt`. Empty/undefined
-   * when nothing hit it this round, in which case `health` (unchanged from last round) is shown as-is. */
-  hitBeats?: readonly AttackBeat[];
+  /** This round's attack + heal beats touching this actor, oldest first -- see `healthAt`. Empty/undefined
+   * when nothing changed its health this round, in which case `health` is shown as-is. */
+  hitBeats?: readonly (AttackBeat | HealBeat)[];
   /** Game-clock time this bar should pop in -- e.g. an entering enemy's run-in finish, so the bar
    * doesn't sit at the resting slot while the sprite is still visibly running in from off-screen. */
   revealAt?: number;

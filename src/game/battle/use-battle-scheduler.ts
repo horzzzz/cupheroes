@@ -55,7 +55,10 @@ export function useBattleScheduler(clock: GameClock) {
               // beat started while the previous round's last beat was still
               // mid-animation -- an attack (or an enemy's approach step) would get
               // cut off and jump to its resting spot instead of finishing the tween.
-              gameTime + Math.max(1, after.round?.beats.length ?? 1) * Timing.beatStagger
+              // 'notice' beats (e.g. "EXTRA TURN") ride an existing beat's slot
+            // and don't extend the timeline -- don't let them pad the gap.
+            gameTime +
+              Math.max(1, after.round?.beats.filter((b) => b.kind !== 'notice').length ?? 1) * Timing.beatStagger
             : after.phase === 'clear'
               ? gameTime + Timing.packClear
               : after.phase === 'advancing'
@@ -83,8 +86,9 @@ export function useBattleScheduler(clock: GameClock) {
   );
 
   // Re-arm the scheduler after a phase change the clock didn't drive -- the
-  // pachinko interlude releasing back into 'active' (`resumeFromPlinko`), or a
-  // revive. `nextEventAt = 0` fires the reaction on the next frame; `tick`
+  // pachinko/draft interlude releasing back into 'active' or 'clear' (the
+  // player buying a skill card), or a revive. `nextEventAt = 0` fires the
+  // reaction on the next frame; `tick`
   // then reschedules the real deadline from the phase it finds.
   useEffect(
     () =>

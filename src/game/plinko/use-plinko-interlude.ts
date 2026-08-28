@@ -46,16 +46,17 @@ export function usePlinkoInterlude(clock: GameClock, world: PlinkoWorld, deckHei
     startDrop(earnedRef.current);
   }, [startDrop]);
 
-  const resumeAndStop = useCallback(() => {
+  const openDraft = useCallback(() => {
+    // Capture what the board caught before `stop()` resets the pachinko store.
+    const collected = usePlinkoStore.getState().collected;
     stop(); // resets the pachinko world + its store
-    useBattleStore.setState({ balls: 0 });
-    useBattleStore.getState().resumeFromPlinko();
+    useBattleStore.getState().enterDraft(collected);
   }, [stop]);
 
   // Enter: pan down, arm the throw. The drop waits for `releaseThrow`.
   useEffect(() => {
     if (battlePhase !== 'plinko') return;
-    earnedRef.current = useBattleStore.getState().balls;
+    earnedRef.current = useBattleStore.getState().wavePot;
     thrownRef.current = false;
     setAwaitingThrow(true);
     world.aimLocked.value = 0; // cup movable again for this wave's aim
@@ -65,25 +66,18 @@ export function usePlinkoInterlude(clock: GameClock, world: PlinkoWorld, deckHei
     cameraY.value = withTiming(deckHeight, { duration: PAN_MS, easing: Easing.inOut(Easing.cubic) });
   }, [battlePhase, deckHeight, cameraY, world]);
 
-  // While the balls are dropping, the HUD counter shows how many are still
-  // unsettled (queued + live), draining to 0. Before the drop it stays at the
-  // earned total.
-  useEffect(() => {
-    if (battlePhase !== 'plinko') return;
-    return usePlinkoStore.subscribe((s) => {
-      if (s.phase !== 'dropping' && s.phase !== 'done') return;
-      useBattleStore.setState({ balls: s.remaining + s.live });
-    });
-  }, [battlePhase]);
+  // The HUD counter during the interlude shows the spendable stash (`balls`),
+  // which doesn't change until the draft -- nothing to sync here. The cup
+  // counters (queued to pour / caught) come off the pachinko store separately.
 
-  // Board clear: pan back up, then release combat once the pan lands.
+  // Board clear: pan back up, then open the skill draft once the pan lands.
   useEffect(() => {
     if (battlePhase !== 'plinko' || plinkoPhase !== 'done') return;
     cameraY.value = withTiming(0, { duration: PAN_MS, easing: Easing.inOut(Easing.cubic) }, (finished) => {
       'worklet';
-      if (finished) runOnJS(resumeAndStop)();
+      if (finished) runOnJS(openDraft)();
     });
-  }, [battlePhase, plinkoPhase, cameraY, resumeAndStop]);
+  }, [battlePhase, plinkoPhase, cameraY, openDraft]);
 
   // Leaving the interlude for any reason other than the normal finish (a retry
   // from the pause modal resets the run to 'intro'): snap the camera home and

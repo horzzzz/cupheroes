@@ -53,11 +53,17 @@ export function usePlinkoRunner(clock: GameClock, world: PlinkoWorld) {
   // HUD sync -- 5 Hz, JS side, reads only scalar shared values.
   useEffect(() => {
     const id = setInterval(() => {
+      // Before the pour starts the world counters are all zero, but the
+      // interlude has parked the throw total in the store's `remaining` for
+      // the top-cup display -- don't clobber it back to 0.
+      const phase = usePlinkoStore.getState().phase;
+      if (phase === 'idle') return;
+
       const collected = world.collected.value + world.overflow.value;
       const live = world.liveCount.value;
       const remaining = world.spawnRemaining.value;
       syncCounts(collected, live, remaining);
-      if (world.running.value === 0 && usePlinkoStore.getState().phase === 'dropping') {
+      if (world.running.value === 0 && phase === 'dropping') {
         setPhase('done');
       }
     }, 200);

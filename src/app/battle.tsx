@@ -14,11 +14,12 @@ import { VictoryOverlay } from '@/components/battle/victory-overlay';
 import { GameText } from '@/components/ui/game-text';
 import { PauseModal } from '@/components/menu/pause-modal';
 import { PlinkoScene } from '@/components/plinko/plinko-scene';
+import { SkillDraftOverlay } from '@/components/draft/skill-draft-overlay';
 import { BattleFrame, halvesInWave } from '@/constants/battle';
 import { Colors } from '@/constants/theme';
 import { Fonts } from '@/constants/fonts';
 import { useBattleScheduler } from '@/game/battle/use-battle-scheduler';
-import { useBattleStore, waveProgress } from '@/game/battle/store';
+import { displayBalls, useBattleStore, waveProgress } from '@/game/battle/store';
 import { useGameClock } from '@/game/clock';
 import { usePlinkoInterlude } from '@/game/plinko/use-plinko-interlude';
 import { usePlinkoWorld } from '@/game/plinko/world';
@@ -53,7 +54,7 @@ export default function BattleScreen() {
   // `sx` (width-only) for the battle scene -- it IS the container, so it pins
   // to device width. `rawS` (contain, edge-to-edge) for the pachinko board --
   // that one can't be cropped (top cup at y=90, receiver at y=814).
-  const { sx: scale, rawS: boardScale, height: deckHeight } = useDesignScale();
+  const { sx: scale, s: safeScale, rawS: boardScale, height: deckHeight } = useDesignScale();
 
   const world = usePlinkoWorld();
   const { cameraY, releaseThrow, awaitingThrow } = usePlinkoInterlude(clock, world, deckHeight);
@@ -65,7 +66,7 @@ export default function BattleScreen() {
 
   const phase = useBattleStore((s) => s.phase);
   const wave = useBattleStore((s) => s.wave);
-  const balls = useBattleStore((s) => s.balls);
+  const balls = useBattleStore(displayBalls);
   const progress = useBattleStore(waveProgress);
   const wavesCompleted = useBattleStore((s) => s.wavesCompleted);
   const reset = useBattleStore((s) => s.reset);
@@ -156,13 +157,16 @@ export default function BattleScreen() {
         wave={wave}
         waveProgress={progress}
         hasMidCheckpoint={halvesInWave(wave) > 1}
-        compact={phase === 'plinko'}
+        compact={phase === 'plinko' || phase === 'draft'}
+        hideFast={phase === 'draft'}
         fast={fast}
         onToggleFast={() => setFast((f) => !f)}
         onPause={() => setPaused(true)}
       />
 
       {!canvasReady && <BattleLoader />}
+
+      {phase === 'draft' && <SkillDraftOverlay clock={clock} scale={safeScale} />}
 
       {phase === 'victory' && <VictoryOverlay onCollect={goHome} />}
       {phase === 'defeat' && <DefeatOverlay wavesCompleted={wavesCompleted} onContinue={goHome} />}

@@ -1,4 +1,4 @@
-import type { AttackBeat, MoveBeat } from '@/game/battle/combat';
+import type { AttackBeat, HealBeat, MoveBeat } from '@/game/battle/combat';
 import { Timing } from '@/constants/battle';
 import { easeOutCubic, isActiveWindow, lerp, pingPong, timelineProgress } from '@/game/easing';
 
@@ -29,8 +29,10 @@ export type ActorLayoutParams = {
   facing: 1 | -1;
   bobPhase: number;
   visualScale: number;
-  attackBeat?: AttackBeat;
-  hitBeat?: AttackBeat;
+  /** Every attack beat this actor throws this round (one per arrow, times any extra turns). */
+  attackBeats?: readonly AttackBeat[];
+  /** Every attack beat that lands on this actor this round (each enemy gets its own swing at the hero). */
+  hitBeats?: readonly AttackBeat[];
   /** Game-clock time this actor died, if it's dead -- a plain timestamp (not a round-scoped beat) so the
    * fade-out doesn't reset once combat moves on to a round that no longer mentions this actor. */
   deadAt?: number;
@@ -51,8 +53,22 @@ export type ActorLayout = {
   pose: 'idle' | 'attack' | 'run';
 };
 
+/** The beat currently animating (or the most recent one still within its `duration` window), else undefined. */
+function currentBeat(beats: readonly AttackBeat[] | undefined, now: number, duration: number): AttackBeat | undefined {
+  'worklet';
+  if (!beats) return undefined;
+  let active: AttackBeat | undefined;
+  for (const beat of beats) {
+    if (beat.startAt <= now && now < beat.startAt + duration) active = beat;
+  }
+  return active;
+}
+
 export function computeActorLayout(p: ActorLayoutParams): ActorLayout {
   'worklet';
+
+  const attackBeat = currentBeat(p.attackBeats, p.now, Timing.attackDuration);
+  const hitBeat = currentBeat(p.hitBeats, p.now, Timing.hitFlash);
 
   if (p.runIn && p.now < p.runIn.startAt + p.runIn.duration) {
     const t = easeOutCubic(timelineProgress(p.now, p.runIn.startAt, p.runIn.duration));
@@ -91,7 +107,7 @@ export function computeActorLayout(p: ActorLayoutParams): ActorLayout {
     }
   }
 
-  const attacking = !!p.attackBeat && isActiveWindow(p.now, p.attackBeat.startAt, Timing.attackDuration);
+  const attacking = !!attackBeat && isActiveWindow(p.now, attackBeat.startAt, Timing.attackDuration);
   const pose: ActorLayout['pose'] = attacking ? 'attack' : moving || p.walking ? 'run' : 'idle';
   const w = attacking ? p.attackWidth : p.idleWidth;
   const h = attacking ? p.attackHeight : p.idleHeight;
@@ -101,13 +117,13 @@ export function computeActorLayout(p: ActorLayoutParams): ActorLayout {
   let opacity = 1;
   let scaleMul = 1;
 
-  if (p.attackBeat) {
-    const t = timelineProgress(p.now, p.attackBeat.startAt, Timing.attackDuration);
+  if (attackBeat) {
+    const t = timelineProgress(p.now, attackBeat.startAt, Timing.attackDuration);
     dx += pingPong(t) * LUNGE_DISTANCE * p.facing;
   }
 
-  if (p.hitBeat && isActiveWindow(p.now, p.hitBeat.startAt, Timing.hitFlash)) {
-    const t = timelineProgress(p.now, p.hitBeat.startAt, Timing.hitFlash);
+  if (hitBeat && isActiveWindow(p.now, hitBeat.startAt, Timing.hitFlash)) {
+    const t = timelineProgress(p.now, hitBeat.startAt, Timing.hitFlash);
     dx += Math.sin(t * Math.PI * 3) * HIT_SHAKE_DISTANCE * (1 - t) * -p.facing;
   }
 
@@ -164,13 +180,23 @@ export function moveOffsetAt(now: number, standX: number, moveBeat?: MoveBeat): 
  * its own damage and the health it left behind, so the health *before* that
  * beat is just `targetHealthAfter + damage` -- no separate "health before
  * this round" snapshot needs to be threaded through.
+ *
+ * `events` mixes attack beats and heal beats (lifesteal / the `heal` skill),
+ * in the order `resolveRound` produced them -- each carries the health it
+ * left behind, so the health *before* it is `after + damage` for a hit or
+ * `after - amount` for a heal.
  */
-export function healthAt(now: number, hitBeats: readonly AttackBeat[], fallbackHealth: number): number {
+export function healthAt(
+  now: number,
+  events: readonly (AttackBeat | HealBeat)[],
+  fallbackHealth: number,
+): number {
   'worklet';
   let health = fallbackHealth;
-  for (const beat of hitBeats) {
+  for (const beat of events) {
     const t = timelineProgress(now, beat.startAt, Timing.healthTween);
-    const before = beat.targetHealthAfter + beat.damage;
+    const before =
+      beat.kind === 'heal' ? beat.targetHealthAfter - beat.amount : beat.targetHealthAfter + beat.damage;
     health = lerp(before, beat.targetHealthAfter, t);
   }
   return health;

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import {
+  HERO_POS,
   HeroBase,
   Timing,
   WAVE_COUNT,
@@ -9,7 +10,9 @@ import {
   packVisualScale,
   wavesEnemies,
 } from '@/constants/battle';
-import { resolveRound, type CombatEnemy, type Round } from '@/game/battle/combat';
+import { SKILLS, skillValue } from '@/constants/skills';
+import { resolveBomb, resolveRound, type Beat, type CombatEnemy, type Round } from '@/game/battle/combat';
+import { aggregateSkills, rollOffers, type OwnedSkills, type SkillOffer } from '@/game/battle/skills';
 
 /**
  * `intro` (hero runs in) -> `enemies-in` (this pack's enemies run in from the
@@ -22,7 +25,8 @@ import { resolveRound, type CombatEnemy, type Round } from '@/game/battle/combat
  * `plinko` is the between-waves interlude: once a new wave's first pack has
  * run in (`finishEntering` with `half === 0 && wave > 1`), combat holds here
  * -- the battle screen pans the camera down to the pachinko board -- until
- * `resumeFromPlinko` releases it into `active`.
+ * the board clears. Then `draft` (Figma 1:1310): the player spends the balls
+ * they collected on one skill card, and buying it releases combat.
  */
 export type BattlePhase =
   | 'intro'
@@ -31,8 +35,15 @@ export type BattlePhase =
   | 'clear'
   | 'advancing'
   | 'plinko'
+  | 'draft'
   | 'victory'
   | 'defeat';
+
+/** Ball price of a manual re-roll on the draft screen (Figma: "REFRESH 50"). */
+export const DRAFT_REFRESH_COST = 50;
+
+/** Real-time gap between tapping a card and combat resuming, so the overlay clears first. */
+const DRAFT_EXIT_DELAY_MS = 450;
 
 type BattleState = {
   phase: BattlePhase;
@@ -48,7 +59,14 @@ type BattleState = {
   enemies: CombatEnemy[];
   /** Game-clock time each living enemy's run-in began, keyed by enemy id -- staggered per enemy. */
   enteredAt: Record<string, number>;
+  /** Balls dropped by this wave's kills, waiting to be poured through the next pachinko board. */
+  wavePot: number;
+  /** The player's spendable balls -- survives across waves, spent on the draft. */
   balls: number;
+  /** Skill levels owned this run. Wiped by `reset`. */
+  ownedSkills: OwnedSkills;
+  /** The three cards the current draft offers, or null outside `draft`. */
+  offers: SkillOffer[] | null;
   round: Round | null;
   wavesCompleted: number;
 
@@ -62,8 +80,12 @@ type BattleState = {
   startAdvance: (gameTime: number) => void;
   /** Spawns the wave's other half, the next wave's first pack, or ends the run in victory. No-op outside 'advancing'. */
   startNextPack: (gameTime: number) => void;
-  /** Ends the between-waves pachinko interlude and starts the fight. No-op outside 'plinko'. */
-  resumeFromPlinko: () => void;
+  /** Ends the pachinko interlude and opens the skill draft with `collected` balls banked. No-op outside 'plinko'. */
+  enterDraft: (collected: number) => void;
+  /** Buys card `index`, applies it, and releases combat. No-op outside 'draft' or if unaffordable. */
+  buySkill: (index: number, gameTime: number) => void;
+  /** Re-rolls the three cards for `DRAFT_REFRESH_COST` balls. No-op outside 'draft' or if unaffordable. */
+  refreshOffers: () => void;
   /** Restores full HP and keeps fighting the current pack. No-op outside 'defeat'. */
   revive: () => void;
   /** Resets to a fresh intro, e.g. when re-entering the battle screen. */
@@ -100,6 +122,16 @@ function spawnPack(wave: number, half: number, packIndex: number, gameTime: numb
   return { phase: 'enemies-in', wave, half, packIndex, enemies, enteredAt, round: null };
 }
 
+/** Hero stats derived from `HeroBase` + owned skills -- recomputed on every purchase, never mutated in place. */
+function heroStatsFrom(owned: OwnedSkills) {
+  const agg = aggregateSkills(owned);
+  return {
+    heroMaxHealth: Math.round(HeroBase.maxHealth * agg.maxHealthMult),
+    heroAttack: Math.round(HeroBase.attack * agg.attackMult),
+    heroArmor: HeroBase.armor + agg.bonusArmor,
+  };
+}
+
 const initialState = {
   phase: 'intro' as BattlePhase,
   wave: 1,
@@ -111,7 +143,10 @@ const initialState = {
   heroArmor: HeroBase.armor,
   enemies: [] as CombatEnemy[],
   enteredAt: {} as Record<string, number>,
+  wavePot: 0,
   balls: 0,
+  ownedSkills: {} as OwnedSkills,
+  offers: null as SkillOffer[] | null,
   round: null as Round | null,
   wavesCompleted: 0,
 };
@@ -130,7 +165,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     if (state.phase !== 'enemies-in') return;
     // Every wave after the first opens with the pachinko interlude, once its
     // first pack has finished running in. The battle screen watches for this
-    // phase, pans down to the board, and calls `resumeFromPlinko` when done.
+    // phase, pans down to the board, and drives the draft when it clears.
     if (state.half === 0 && state.wave > 1) {
       set({ phase: 'plinko' });
       return;
@@ -146,6 +181,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       { health: state.heroHealth, maxHealth: state.heroMaxHealth, attack: state.heroAttack, armor: state.heroArmor },
       state.enemies,
       gameTime,
+      aggregateSkills(state.ownedSkills).combat,
     );
 
     const round: Round = { index: (state.round?.index ?? 0) + 1, startedAt: gameTime, beats: resolution.beats };
@@ -155,7 +191,7 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       phase: nextPhase,
       heroHealth: resolution.heroHealthAfter,
       enemies: resolution.enemiesAfter,
-      balls: state.balls + resolution.ballsGained,
+      wavePot: state.wavePot + resolution.ballsGained,
       round,
     });
   },
@@ -189,9 +225,87 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     set({ wavesCompleted: state.wavesCompleted + 1, ...spawnPack(state.wave + 1, 0, state.packIndex, gameTime) });
   },
 
-  resumeFromPlinko: () => {
-    if (get().phase !== 'plinko') return;
-    set({ phase: 'active' });
+  enterDraft: (collected) => {
+    const state = get();
+    if (state.phase !== 'plinko') return;
+    const balls = state.balls + Math.max(0, Math.round(collected));
+    const offers = rollOffers(state.wave, state.ownedSkills, balls);
+    // Nothing left to offer (every unlocked skill maxed) -- skip the draft
+    // rather than show an empty screen the player can't leave.
+    if (offers.length === 0) {
+      set({ phase: 'active', balls, wavePot: 0 });
+      return;
+    }
+    set({ phase: 'draft', balls, wavePot: 0, offers });
+  },
+
+  buySkill: (index, gameTime) => {
+    const state = get();
+    if (state.phase !== 'draft' || !state.offers) return;
+    const offer = state.offers[index];
+    if (!offer || offer.price > state.balls) return;
+
+    const ownedSkills: OwnedSkills = { ...state.ownedSkills, [offer.id]: offer.level };
+    const stats = heroStatsFrom(ownedSkills);
+    // A `maxHealth` buy raises the ceiling; lift current HP by the same delta
+    // so "+100% max health" reads as a gain, not a halved bar.
+    const healthDelta = Math.max(0, stats.heroMaxHealth - state.heroMaxHealth);
+
+    let heroHealth = Math.min(stats.heroMaxHealth, state.heroHealth + healthDelta);
+    let enemies = state.enemies;
+    let wavePot = state.wavePot;
+    let round = state.round;
+
+    if (SKILLS[offer.id].kind === 'instant') {
+      const value = skillValue(offer.id, offer.level);
+      if (offer.id === 'heal') {
+        const amount = Math.min(value, stats.heroMaxHealth - heroHealth);
+        if (amount > 0) {
+          heroHealth += amount;
+          round = syntheticRound(round, gameTime, [
+            {
+              kind: 'heal',
+              targetId: 'hero',
+              amount,
+              targetHealthAfter: heroHealth,
+              targetX: HERO_POS.x,
+              startAt: gameTime,
+            },
+          ]);
+        }
+      } else if (offer.id === 'bomb') {
+        const blast = resolveBomb(stats.heroAttack, value, enemies, gameTime);
+        enemies = blast.enemiesAfter;
+        wavePot += blast.ballsGained;
+        round = syntheticRound(round, gameTime, blast.beats);
+      }
+    }
+
+    set({
+      ownedSkills,
+      ...stats,
+      heroHealth,
+      enemies,
+      wavePot,
+      round,
+      balls: state.balls - offer.price,
+      // Clear the cards but stay in 'draft' for a short beat so the overlay
+      // dismisses before the hero starts swinging -- feedback that combat
+      // resumed the instant a card was tapped.
+      offers: null,
+    });
+    setTimeout(() => {
+      // If a bomb wiped the pack, the first (empty) round resolves straight to
+      // 'clear' and the death fade plays over the pause.
+      if (get().phase === 'draft') set({ phase: 'active' });
+    }, DRAFT_EXIT_DELAY_MS);
+  },
+
+  refreshOffers: () => {
+    const state = get();
+    if (state.phase !== 'draft' || state.balls < DRAFT_REFRESH_COST) return;
+    const balls = state.balls - DRAFT_REFRESH_COST;
+    set({ balls, offers: rollOffers(state.wave, state.ownedSkills, balls) });
   },
 
   revive: () => {
@@ -200,8 +314,12 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     set({ phase: 'active', heroHealth: state.heroMaxHealth, round: null });
   },
 
-  reset: () => set({ ...initialState }),
+  reset: () => set({ ...initialState, ownedSkills: {}, offers: null }),
 }));
+
+function syntheticRound(prev: Round | null, gameTime: number, beats: Beat[]): Round {
+  return { index: (prev?.index ?? 0) + 1, startedAt: gameTime, beats };
+}
 
 /** 0..1 fraction of the current wave cleared -- both halves' worth, not just the pack on screen. */
 export function waveProgress(state: Pick<BattleState, 'wave' | 'half' | 'enemies'>): number {
@@ -209,4 +327,18 @@ export function waveProgress(state: Pick<BattleState, 'wave' | 'half' | 'enemies
   const killedFraction =
     state.enemies.length > 0 ? state.enemies.filter((enemy) => !enemy.alive).length / state.enemies.length : 0;
   return Math.min(1, (state.half + killedFraction) / total);
+}
+
+/**
+ * What the HUD ball counter shows:
+ * - fighting: `wavePot` -- balls this wave's kills have dropped, waiting for the next pachinko;
+ * - pachinko / draft: `balls` -- the spendable stash the draft pulls from.
+ */
+export function displayBalls(state: Pick<BattleState, 'balls' | 'wavePot' | 'phase'>): number {
+  return state.phase === 'plinko' || state.phase === 'draft' ? state.balls : state.wavePot;
+}
+
+/** Whether a card is affordable right now -- drives the red price + ad button on the draft screen. */
+export function canAfford(offer: SkillOffer, balls: number): boolean {
+  return offer.price <= balls;
 }

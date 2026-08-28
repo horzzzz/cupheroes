@@ -49,10 +49,12 @@ function SingleActor({
     [pose.attack, idleSize],
   );
 
-  const attackBeat = round?.beats.find(
+  const attackBeats = round?.beats.filter(
     (beat): beat is AttackBeat => beat.kind === 'attack' && beat.attackerId === id,
   );
-  const hitBeat = round?.beats.find((beat): beat is AttackBeat => beat.kind === 'attack' && beat.targetId === id);
+  const hitBeats = round?.beats.filter(
+    (beat): beat is AttackBeat => beat.kind === 'attack' && beat.targetId === id,
+  );
   const moveBeat = round?.beats.find((beat): beat is MoveBeat => beat.kind === 'move' && beat.actorId === id);
 
   const params: Omit<ActorLayoutParams, 'now'> = {
@@ -67,8 +69,8 @@ function SingleActor({
     idleHeight: idleSize.height,
     attackWidth: attackSize.width,
     attackHeight: attackSize.height,
-    attackBeat,
-    hitBeat,
+    attackBeats,
+    hitBeats,
     moveBeat,
     deadAt,
   };

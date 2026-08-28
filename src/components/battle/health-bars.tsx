@@ -1,6 +1,6 @@
 import { HERO_POS, Timing } from '@/constants/battle';
 import { HealthBar } from '@/components/battle/health-bar';
-import type { AttackBeat, MoveBeat } from '@/game/battle/combat';
+import type { AttackBeat, HealBeat, MoveBeat } from '@/game/battle/combat';
 import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 
@@ -17,7 +17,8 @@ export function HealthBars({ clock, scale }: { clock: GameClock; scale: number }
   const enteredAt = useBattleStore((s) => s.enteredAt);
 
   const heroHitBeats = round?.beats.filter(
-    (beat): beat is AttackBeat => beat.kind === 'attack' && beat.targetId === 'hero',
+    (beat): beat is AttackBeat | HealBeat =>
+      (beat.kind === 'attack' || beat.kind === 'heal') && beat.targetId === 'hero',
   );
 
   return (

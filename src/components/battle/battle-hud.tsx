@@ -33,6 +33,7 @@ export function BattleHud({
   waveProgress,
   hasMidCheckpoint,
   compact = false,
+  hideFast = false,
   fast,
   onToggleFast,
   onPause,
@@ -50,6 +51,8 @@ export function BattleHud({
   hasMidCheckpoint: boolean;
   /** Pachinko interlude: drop the wave title + progress bar, keep only the top row. */
   compact?: boolean;
+  /** Skill draft: hide the x2 toggle too -- there's nothing to speed up while picking a card. */
+  hideFast?: boolean;
   fast: boolean;
   onToggleFast: () => void;
   onPause: () => void;
@@ -69,13 +72,15 @@ export function BattleHud({
         <BalancePill icon={BALL_ICON} value={balls} />
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 * scale }}>
-          <Pressable onPress={onToggleFast} style={{ opacity: fast ? 1 : 0.6 }} hitSlop={8}>
-            <Image
-              source={X2_ICON}
-              style={{ width: ICON_SIZE * scale, height: ICON_SIZE * scale }}
-              contentFit="contain"
-            />
-          </Pressable>
+          {!hideFast && (
+            <Pressable onPress={onToggleFast} style={{ opacity: fast ? 1 : 0.6 }} hitSlop={8}>
+              <Image
+                source={X2_ICON}
+                style={{ width: ICON_SIZE * scale, height: ICON_SIZE * scale }}
+                contentFit="contain"
+              />
+            </Pressable>
+          )}
           <Pressable onPress={onPause} hitSlop={8}>
             <Image
               source={PAUSE_ICON}
