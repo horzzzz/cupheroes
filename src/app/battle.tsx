@@ -57,7 +57,7 @@ export default function BattleScreen() {
   const { sx: scale, s: safeScale, rawS: boardScale, height: deckHeight } = useDesignScale();
 
   const world = usePlinkoWorld();
-  const { cameraY, releaseThrow, awaitingThrow } = usePlinkoInterlude(clock, world, deckHeight);
+  const { cameraY, releaseThrow, awaitingThrow, layout: plinkoLayout } = usePlinkoInterlude(clock, world, deckHeight);
   const deckStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -cameraY.value }] }));
 
   const [canvasReady, setCanvasReady] = useState(false);
@@ -142,6 +142,7 @@ export default function BattleScreen() {
               world={world}
               clock={clock}
               boardScale={boardScale}
+              layout={plinkoLayout}
               awaitingThrow={awaitingThrow}
               onThrow={releaseThrow}
             />

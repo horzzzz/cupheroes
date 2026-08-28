@@ -10,6 +10,7 @@ import {
   packVisualScale,
   wavesEnemies,
 } from '@/constants/battle';
+import { shufflePlinkoOrder } from '@/constants/plinko-layouts';
 import { SKILLS, skillValue } from '@/constants/skills';
 import { applyUpgrades } from '@/constants/upgrades';
 import type { Reward } from '@/constants/economy';
@@ -74,6 +75,8 @@ type BattleState = {
   /** The three cards the current draft offers, or null outside `draft`. */
   offers: SkillOffer[] | null;
   round: Round | null;
+  /** Per-run shuffle of the pachinko board pool -- see `plinkoLayoutForWave`. Re-rolled by `reset`. */
+  plinkoOrder: number[];
   wavesCompleted: number;
   /** Coins/gems/xp granted for the run that just ended -- null mid-run. Read by the victory/defeat overlays. */
   lastReward: Reward | null;
@@ -170,6 +173,7 @@ function freshState() {
     ownedSkills: {} as OwnedSkills,
     offers: null as SkillOffer[] | null,
     round: null as Round | null,
+    plinkoOrder: shufflePlinkoOrder(),
     wavesCompleted: 0,
     lastReward: null as Reward | null,
   };

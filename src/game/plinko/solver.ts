@@ -1,11 +1,4 @@
-import {
-  PLINKO_BOOST_PAD,
-  PLINKO_CUPS,
-  PLINKO_GATES,
-  PLINKO_TUNING,
-  PLINKO_WALLS,
-  PlinkoFrame,
-} from '@/constants/plinko';
+import { PLINKO_CUPS, PLINKO_TUNING, PlinkoFrame } from '@/constants/plinko';
 import { allocBall } from '@/game/plinko/bodies';
 import { collideCircleWall, pointInRect, rand01 } from '@/game/plinko/collision';
 import { PLINKO_GRID, type PlinkoWorld } from '@/game/plinko/world';
@@ -44,6 +37,13 @@ const SUBSTEP_DT = PLINKO_TUNING.fixedDt;
 const SCALE_EASE = 6; // scl eases to 1 at this rate/second (spawn pop-in)
 const DEAD = 0; // scl sentinel for "counted / lost, compact me out"
 
+// Stuck-ball watchdog: a body that stays below STILL_SPEED for STILL_LIMIT
+// game-seconds is wedged (bad geometry, a jam, resting out of the drain path).
+// It's counted and removed so `liveCount` always reaches 0 and the interlude
+// can hand over to the skill draft instead of waiting forever.
+const STILL_SPEED2 = 34 * 34;
+const STILL_LIMIT = 2.2;
+
 export function stepPlinko(world: PlinkoWorld, now: number): void {
   'worklet';
   const dt = SUBSTEP_DT;
@@ -59,10 +59,16 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
   const vx = world.velX.value;
   const vy = world.velY.value;
   const launchArr = world.launch.value;
+  const stillArr = world.still.value;
   const scl = world.scl.value;
   const mask = world.gateMask.value;
   const live = world.liveList.value;
   const freeArr = world.freeList.value;
+
+  const layout = world.layout.value;
+  const walls = layout.walls;
+  const gates = layout.gates;
+  const pad = layout.pad;
 
   const drag = 1 - PLINKO_TUNING.airDrag;
   const maxSpeed = PLINKO_TUNING.maxSpeed;
@@ -112,8 +118,8 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
     y += uy * dt;
 
     // Walls.
-    for (let w = 0; w < PLINKO_WALLS.length; w++) {
-      const hit = collideCircleWall(x, y, radius, PLINKO_WALLS[w]);
+    for (let w = 0; w < walls.length; w++) {
+      const hit = collideCircleWall(x, y, radius, walls[w]);
       if (!hit.hit) continue;
 
       x += hit.nx * hit.pen;
@@ -139,8 +145,8 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
     // double-count while the ball is passing through (or wobbling near) the
     // band; it re-arms once the ball is well clear, so a ball bounced or
     // boosted back up through a gate it already used gets multiplied again.
-    for (let g = 0; g < PLINKO_GATES.length; g++) {
-      const gate = PLINKO_GATES[g];
+    for (let g = 0; g < gates.length; g++) {
+      const gate = gates[g];
       const bandCy = (gate.y0 + gate.y1) * 0.5;
       if (y < bandCy - PLINKO_TUNING.gateRearmDist || y > bandCy + PLINKO_TUNING.gateRearmDist) {
         mask[i] &= ~gate.bit;
@@ -166,10 +172,11 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
       }
     }
 
-    // Boost pad -- one-shot trampoline.
+    // Boost pad -- one-shot trampoline. Skipped entirely on layouts without one.
     if (
+      pad !== null &&
       world.boostState.value < 2 &&
-      pointInRect(x, y, PLINKO_BOOST_PAD.x0, PLINKO_BOOST_PAD.y0, PLINKO_BOOST_PAD.x1, PLINKO_BOOST_PAD.y1)
+      pointInRect(x, y, pad.x0, pad.y0, pad.x1, pad.y1)
     ) {
       if (world.boostState.value === 0) {
         world.boostState.value = 1;
@@ -182,7 +189,7 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
         mask[i] = 0; // wipe gate memory -- can re-multiply
         // Lift clear of the pad (so it isn't re-fired next sub-step) with a
         // little vertical scatter so a whole boosted batch isn't colinear.
-        y = PLINKO_BOOST_PAD.y0 - radius - 1 - nextRand(world) * 6;
+        y = pad.y0 - radius - 1 - nextRand(world) * 6;
         launchArr[i] = PLINKO_TUNING.boostImmunity;
       }
     }
@@ -190,13 +197,18 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
     if (launchArr[i] > 0) launchArr[i] -= dt;
     if (scl[i] < 1) scl[i] = Math.min(1, scl[i] + SCALE_EASE * dt);
 
+    // Wedged-ball timer: reset the moment it's moving, otherwise accrue.
+    if (ux * ux + uy * uy > STILL_SPEED2) stillArr[i] = 0;
+    else stillArr[i] += dt;
+
     px[i] = x;
     py[i] = y;
     vx[i] = ux;
     vy[i] = uy;
 
-    // Caught by the cup, or lost off-board -> flag for compaction.
-    if (y > PLINKO_CUPS.drainY) {
+    // Caught by the cup, lost off-board, or wedged past the watchdog limit
+    // -> flag for compaction. A wedged ball still counts toward the haul.
+    if (y > PLINKO_CUPS.drainY || stillArr[i] > STILL_LIMIT) {
       world.collected.value += 1;
       scl[i] = DEAD;
       py[i] = -2000;

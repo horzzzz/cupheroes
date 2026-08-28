@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
-import { PLINKO_TUNING } from '@/constants/plinko';
+import { PLINKO_TUNING, type PlinkoLayout } from '@/constants/plinko';
+import { DEFAULT_PLINKO_LAYOUT } from '@/constants/plinko-layouts';
 
 /**
  * The whole pachinko simulation state, as a flat bag of Reanimated shared
@@ -36,10 +37,18 @@ export type PlinkoWorld = {
   spin: NumArr;
   /** Seconds of ball-vs-ball immunity left after a boost-pad launch (0 = none). */
   launch: NumArr;
+  /** Seconds this ball has been (near) motionless -- the solver drains it once
+   * it crosses `STILL_LIMIT`, so a wedged ball can never hang the interlude. */
+  still: NumArr;
   /** Render scale, 0 = parked/dead, eases 0->1 as a spawn pop-in. */
   scl: NumArr;
   /** Bitmask of gates this ball has already been multiplied by. */
   gateMask: NumArr;
+
+  /** The board being played. Set by `startDrop` before the solver runs; the
+   * step worklet reads `layout.value.{walls,gates,pad}` instead of module
+   * constants, so each wave can hand it a different board. */
+  layout: SharedValue<PlinkoLayout>;
 
   liveList: NumArr;
   freeList: NumArr;
@@ -101,8 +110,11 @@ export function usePlinkoWorld(): PlinkoWorld {
     rot: useSharedValue<number[]>(zeros(n)),
     spin: useSharedValue<number[]>(zeros(n)),
     launch: useSharedValue<number[]>(zeros(n)),
+    still: useSharedValue<number[]>(zeros(n)),
     scl: useSharedValue<number[]>(zeros(n)),
     gateMask: useSharedValue<number[]>(zeros(n)),
+
+    layout: useSharedValue<PlinkoLayout>(DEFAULT_PLINKO_LAYOUT),
 
     liveList: useSharedValue<number[]>(zeros(n)),
     freeList: useSharedValue<number[]>(Array.from({ length: n }, (_, i) => n - 1 - i)),
@@ -154,11 +166,13 @@ export function resetPlinkoWorld(world: PlinkoWorld): void {
   const scl = world.scl.value;
   const mask = world.gateMask.value;
   const launch = world.launch.value;
+  const still = world.still.value;
   for (let i = 0; i < n; i++) {
     free[i] = n - 1 - i;
     scl[i] = 0;
     mask[i] = 0;
     launch[i] = 0;
+    still[i] = 0;
   }
   world.liveCount.value = 0;
   world.freeCount.value = n;

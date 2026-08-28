@@ -31,6 +31,7 @@ export function allocBall(world: PlinkoWorld, x: number, y: number, vx: number, 
   world.rot.value[i] = 0;
   world.spin.value[i] = 0;
   world.launch.value[i] = 0;
+  world.still.value[i] = 0;
   world.scl.value[i] = 0.01; // eases up to 1 -- spawn pop-in
   world.gateMask.value[i] = mask;
   return i;

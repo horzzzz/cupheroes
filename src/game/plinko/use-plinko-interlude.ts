@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Easing, runOnJS, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { PLINKO_AIM_RANGE } from '@/constants/plinko';
+import { PLINKO_AIM_RANGE, type PlinkoLayout } from '@/constants/plinko';
+import { DEFAULT_PLINKO_LAYOUT, plinkoLayoutForWave } from '@/constants/plinko-layouts';
 import type { GameClock } from '@/game/clock';
 import { useBattleStore } from '@/game/battle/store';
 import { usePlinkoRunner } from '@/game/plinko/use-plinko-runner';
@@ -35,6 +36,8 @@ export function usePlinkoInterlude(clock: GameClock, world: PlinkoWorld, deckHei
   const cameraY = useSharedValue(0);
 
   const [awaitingThrow, setAwaitingThrow] = useState(false);
+  const [layout, setLayout] = useState<PlinkoLayout>(DEFAULT_PLINKO_LAYOUT);
+  const layoutRef = useRef<PlinkoLayout>(DEFAULT_PLINKO_LAYOUT);
   const earnedRef = useRef(0);
   const thrownRef = useRef(false);
   const wasPlinkoRef = useRef(false);
@@ -43,7 +46,7 @@ export function usePlinkoInterlude(clock: GameClock, world: PlinkoWorld, deckHei
     if (thrownRef.current) return;
     thrownRef.current = true;
     setAwaitingThrow(false);
-    startDrop(earnedRef.current);
+    startDrop(earnedRef.current, layoutRef.current);
   }, [startDrop]);
 
   const openDraft = useCallback(() => {
@@ -56,7 +59,11 @@ export function usePlinkoInterlude(clock: GameClock, world: PlinkoWorld, deckHei
   // Enter: pan down, arm the throw. The drop waits for `releaseThrow`.
   useEffect(() => {
     if (battlePhase !== 'plinko') return;
-    earnedRef.current = useBattleStore.getState().wavePot;
+    const bs = useBattleStore.getState();
+    earnedRef.current = bs.wavePot;
+    const nextLayout = plinkoLayoutForWave(bs.plinkoOrder, bs.wave);
+    layoutRef.current = nextLayout;
+    setLayout(nextLayout);
     thrownRef.current = false;
     setAwaitingThrow(true);
     world.aimLocked.value = 0; // cup movable again for this wave's aim
@@ -95,5 +102,5 @@ export function usePlinkoInterlude(clock: GameClock, world: PlinkoWorld, deckHei
     if (usePlinkoStore.getState().phase !== 'idle') stop();
   }, [battlePhase, stop, cameraY]);
 
-  return { cameraY, releaseThrow, awaitingThrow };
+  return { cameraY, releaseThrow, awaitingThrow, layout };
 }

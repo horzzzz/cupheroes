@@ -4,8 +4,9 @@
  *
  * This is the single source of truth for the board: the collision solver
  * (`src/game/plinko/*`) and the renderer (`src/components/plinko/*`) both
- * read the same `PLINKO_WALLS` / `PLINKO_GATES` arrays, so a tweak here moves
- * the physics and the drawing together and they can't drift apart.
+ * read the same layout objects (`PLINKO_SHELL_WALLS` + `PLINKO_LAYOUTS` in
+ * `constants/plinko-layouts`), so a tweak moves the physics and the drawing
+ * together and they can't drift apart.
  *
  * Every wall was recovered from the Figma `get_design_context` CSS (resolved
  * on-screen rectangles), not the raw node transforms -- the deflectors and
@@ -41,24 +42,24 @@ export type PlinkoWall = {
   r: number;
 };
 
-export const PLINKO_WALLS: readonly PlinkoWall[] = [
+/**
+ * The fixed outer shell every board layout keeps: the two side walls and the
+ * V-funnel over the throat (x 167..223). The receiving-cup catch in
+ * `PLINKO_CUPS` depends on this funnel geometry, so a layout only ever varies
+ * the middle of the board (see `PLINKO_LAYOUTS` in `constants/plinko-layouts`).
+ */
+export const PLINKO_SHELL_WALLS: readonly PlinkoWall[] = [
   // Side walls (Figma 1:1934 / 1:1935) -- full-height, 20pt thick.
   { id: 'wall-l', cx: 10, cy: 422, hx: 10, hy: 422, a: 0, r: 2 },
   { id: 'wall-r', cx: 380, cy: 422, hx: 10, hy: 422, a: 0, r: 2 },
-  // Vertical channel dividers (1:1936 / 1:1937 / 1:1938) -- 8pt bars.
-  { id: 'div-a', cx: 148, cy: 304, hx: 4, hy: 40, a: 0, r: 4 },
-  { id: 'div-b', cx: 97, cy: 452, hx: 4, hy: 64, a: 0, r: 4 },
-  { id: 'div-c', cx: 278, cy: 373.5, hx: 4, hy: 109.5, a: 0, r: 4 },
-  // Diagonal deflectors (1:1962 / 1:1961) -- "/" shaped, 8pt bars at +45deg.
-  // A sits under the x2/x3 gate seam and shoves balls into the left channel;
-  // B sits under divider C and does the same lower down.
-  { id: 'defl-a', cx: 122.12, cy: 366.11, hx: 4, hy: 40, a: D45, r: 4 },
-  { id: 'defl-b', cx: 252.11, cy: 505.11, hx: 4, hy: 40, a: D45, r: 4 },
   // V-funnel above the receiving cup (1:1939 / 1:1940) -- 20pt walls, +/-75deg,
   // leaving a ~56pt throat at x 167..223 directly over the bottom cup.
   { id: 'funnel-l', cx: 84.69, cy: 687.66, hx: 10, hy: 85, a: -D75, r: 4 },
   { id: 'funnel-r', cx: 305.31, cy: 687.66, hx: 10, hy: 85, a: D75, r: 4 },
 ] as const;
+
+/** Re-exported so layout authoring can reuse the same diagonal angle. */
+export const PLINKO_D45 = D45;
 
 /**
  * A multiplier gate: an axis-aligned sensor band. A ball that enters the band
@@ -80,21 +81,30 @@ export type PlinkoGate = {
   color: string;
 };
 
-export const PLINKO_GATES: readonly PlinkoGate[] = [
-  { id: 'g-x2', bit: 1 << 0, mult: 2, x0: 16, x1: 148, y0: 289, y1: 314, channelMin: 20, channelMax: 144, color: '#A58F35' },
-  { id: 'g-x3', bit: 1 << 1, mult: 3, x0: 148, x1: 280, y0: 289, y1: 314, channelMin: 152, channelMax: 274, color: '#A58F35' },
-  { id: 'g-x4', bit: 1 << 2, mult: 4, x0: 278, x1: 374, y0: 289, y1: 314, channelMin: 282, channelMax: 370, color: '#83A835' },
-  { id: 'g-x2b', bit: 1 << 3, mult: 2, x0: 278, x1: 374, y0: 427, y1: 452, channelMin: 282, channelMax: 370, color: '#A58F35' },
-] as const;
-
 /**
  * The one-shot boost pad (1:1931). While `armed`, the first ball to touch it
  * opens a firing window (`PLINKO_TUNING.boostWindow` game-seconds); every ball
  * that touches during the window is launched upward with a sideways kick and
  * has its `gateMask` wiped (so it can re-trigger the same gates). After the
  * window it is `dead` forever and balls pass straight through it.
+ *
+ * A layout may omit it (`pad: null`).
  */
-export const PLINKO_BOOST_PAD = { x0: 20, x1: 93, y0: 486, y1: 511 } as const;
+export type PlinkoPad = { x0: number; x1: number; y0: number; y1: number };
+
+/**
+ * One selectable board. The outer shell (`PLINKO_SHELL_WALLS`) is always
+ * present; a layout supplies the middle obstacles, the multiplier gates and an
+ * optional boost pad. See `constants/plinko-layouts.ts` for the pool and the
+ * authoring constraints.
+ */
+export type PlinkoLayout = {
+  id: string;
+  /** Full wall list: `PLINKO_SHELL_WALLS` spread in first, then the layout's own middle obstacles. */
+  walls: readonly PlinkoWall[];
+  gates: readonly PlinkoGate[];
+  pad: PlinkoPad | null;
+};
 
 /** Top (player-aimed) and bottom (fixed) cups. `emitX/emitY` is where balls
  * leave the top cup; `mouth` is the bottom cup's catch slit under the funnel
@@ -176,7 +186,9 @@ export const PLINKO_TUNING = {
 
 export const PLINKO_COLORS = {
   wall: '#8DBD1B',
-  boostPad: '#3FA9F5',
+  /** Matches the flat blue of `pad-boost.webp` so the panel can be widened with
+   * a plain RoundedRect behind the (centred, unstretched) chevron art. */
+  boostPad: '#00A5FF',
   gateLabel: '#FFFFFF',
 } as const;
 

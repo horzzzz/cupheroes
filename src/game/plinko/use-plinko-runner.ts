@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { runOnUI, useAnimatedReaction } from 'react-native-reanimated';
 
-import { PLINKO_TUNING } from '@/constants/plinko';
+import { PLINKO_TUNING, type PlinkoLayout } from '@/constants/plinko';
 import type { GameClock } from '@/game/clock';
 import { stepPlinko } from '@/game/plinko/solver';
 import { usePlinkoStore } from '@/game/plinko/store';
@@ -70,10 +70,13 @@ export function usePlinkoRunner(clock: GameClock, world: PlinkoWorld) {
     return () => clearInterval(id);
   }, [world, syncCounts, setPhase]);
 
-  /** Seeds a fresh drop of `count` balls and starts the solver. */
+  /** Seeds a fresh drop of `count` balls on `layout` and starts the solver. */
   const startDrop = useCallback(
-    (count: number) => {
+    (count: number, layout: PlinkoLayout) => {
       beginDrop(count);
+      // Install the board before anything steps -- the solver isn't running
+      // yet (`running === 0`), so this races nothing.
+      world.layout.value = layout;
       // Mark it running from JS right away so the HUD poll can't catch a
       // `running === 0 && phase === 'dropping'` window before the worklet
       // below lands and (wrongly) flip the phase straight to 'done'.
