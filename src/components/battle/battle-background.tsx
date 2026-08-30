@@ -6,9 +6,11 @@ import { useBattleStore } from '@/game/battle/store';
 import { spriteDesignSize, type SpriteSet } from '@/game/sprites';
 
 /**
- * Three copies of the one exported background crop -- normal, mirrored,
- * normal -- laid edge to edge exactly like the Figma frame (`location_1`,
- * node 1:2103: three 390-wide tiles, the middle one flipped). The whole
+ * Three copies of the chapter's exported background crop -- normal, mirrored,
+ * normal -- laid edge to edge exactly like the Figma frames (`location_1..4`,
+ * nodes 1:2103/2108/2113/2118: three 390-wide tiles, the middle one flipped).
+ * Which tile is loaded comes from the run's chapter (see `useBattleSprites`).
+ * The whole
  * strip pans left a fixed nudge per pack (each wave is two packs -- see
  * `HALVES_PER_WAVE`) as a "moving forward" cue; with only one tile of art
  * there's no new scenery to reveal by panning further, so the shift stays
@@ -21,9 +23,12 @@ const SHIFT_PER_PACK = 26;
 
 type BattleBackgroundProps = {
   sprites: SpriteSet;
+  /** Fill shown for the frame or two before the tile decodes -- the chapter's
+   * ground tone, so the flash reads as the location rather than always green. */
+  placeholderColor: string;
 };
 
-export function BattleBackground({ sprites }: BattleBackgroundProps) {
+export function BattleBackground({ sprites, placeholderColor }: BattleBackgroundProps) {
   const packIndex = useBattleStore((s) => s.packIndex);
   const tile = sprites.bgTile;
   const tileSize = tile ? spriteDesignSize(tile) : { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT };
@@ -41,12 +46,12 @@ export function BattleBackground({ sprites }: BattleBackgroundProps) {
   const groupTransform = useDerivedValue(() => [{ translateX: -shift.value }]);
 
   if (!tile) {
-    return <Rect x={0} y={0} width={VIEWPORT_WIDTH} height={VIEWPORT_HEIGHT} color="#8dbd1b" />;
+    return <Rect x={0} y={0} width={VIEWPORT_WIDTH} height={VIEWPORT_HEIGHT} color={placeholderColor} />;
   }
 
   return (
     <Group clip={{ x: 0, y: 0, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT }}>
-      <Rect x={0} y={0} width={VIEWPORT_WIDTH} height={VIEWPORT_HEIGHT} color="#8dbd1b" />
+      <Rect x={0} y={0} width={VIEWPORT_WIDTH} height={VIEWPORT_HEIGHT} color={placeholderColor} />
       <Group transform={groupTransform}>
         <Image image={tile} x={0} y={0} width={tileSize.width} height={tileSize.height} fit="fill" />
         <Image

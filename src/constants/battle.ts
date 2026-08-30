@@ -98,11 +98,11 @@ export const Timing = {
   ballFlight: 0.55,
 } as const;
 
-export type SpriteKey = 'hero' | 'enemy1' | 'enemy2';
 export type EnemyRange = 'melee' | 'ranged';
 
-// enemy1 (bee) flies -- it's the ranged archetype; enemy2 (goblin) fights
-// with a blade, up close. A pack alternates them (see `WAVE_TABLE`).
+// The `ranged` archetype flies / stands off and looses projectiles; `melee`
+// closes the distance and swings. A pack alternates them (see `WAVE_TABLE`);
+// which creatures wear those roles is per-chapter art, resolved in `sprites.ts`.
 export const BOSS_VISUAL_SCALE = 1.4;
 
 /**
@@ -322,7 +322,7 @@ export function meleeStepX(slotX: number, slotIndex: number, steps: number): num
 }
 
 export type EnemySpec = {
-  spriteKey: Extract<SpriteKey, 'enemy1' | 'enemy2'>;
+  /** Drives the sprite (`ranged` vs `melee` art) as well as the approach behaviour. */
   range: EnemyRange;
   maxHealth: number;
   attack: number;
@@ -358,7 +358,6 @@ export function wavesEnemies(wave: number, half: number, level: number): EnemySp
   const attack = Math.round(referenceAttack * (bite / 10 + HERO_ARMOR_RATIO));
 
   return pack.map((enemy) => ({
-    spriteKey: enemy.range === 'melee' ? 'enemy2' : 'enemy1',
     range: enemy.range,
     maxHealth: Math.round(referenceAttack * enemy.htk),
     attack,

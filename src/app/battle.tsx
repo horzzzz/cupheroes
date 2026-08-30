@@ -16,6 +16,7 @@ import { PauseModal } from '@/components/menu/pause-modal';
 import { PlinkoScene } from '@/components/plinko/plinko-scene';
 import { SkillDraftOverlay } from '@/components/draft/skill-draft-overlay';
 import { BattleFrame, halvesInWave } from '@/constants/battle';
+import { chapterTheme } from '@/constants/chapters';
 import { Colors } from '@/constants/theme';
 import { Fonts } from '@/constants/fonts';
 import { useBattleScheduler } from '@/game/battle/use-battle-scheduler';
@@ -66,6 +67,8 @@ export default function BattleScreen() {
 
   const phase = useBattleStore((s) => s.phase);
   const wave = useBattleStore((s) => s.wave);
+  const chapter = useBattleStore((s) => s.chapter);
+  const theme = chapterTheme(chapter);
   const balls = useBattleStore(displayBalls);
   const progress = useBattleStore(waveProgress);
   const wavesCompleted = useBattleStore((s) => s.wavesCompleted);
@@ -105,7 +108,7 @@ export default function BattleScreen() {
         <View style={{ height: deckHeight }}>
           <View style={{ flex: 1, width: BattleFrame.width * scale, alignSelf: 'center' }}>
             <View style={{ width: BattleFrame.width * scale, height: BattleFrame.canvasHeight * scale }}>
-              <BattleCanvas clock={clock} scale={scale} onReady={setCanvasReady} />
+              <BattleCanvas clock={clock} scale={scale} chapter={chapter} onReady={setCanvasReady} />
               <HealthBars clock={clock} scale={scale} />
               <DamageNumbers clock={clock} scale={scale} />
             </View>
@@ -114,7 +117,7 @@ export default function BattleScreen() {
               style={{
                 flex: 1,
                 marginTop: -JOURNEY_OVERLAP * scale,
-                backgroundColor: '#8dbd1b',
+                backgroundColor: theme.groundColor,
                 alignItems: 'center',
                 paddingTop: 110 * scale,
                 paddingBottom: insets.bottom,
@@ -143,6 +146,7 @@ export default function BattleScreen() {
               clock={clock}
               boardScale={boardScale}
               layout={plinkoLayout}
+              wallColor={theme.wallColor}
               awaitingThrow={awaitingThrow}
               onThrow={releaseThrow}
             />
@@ -170,7 +174,9 @@ export default function BattleScreen() {
 
       {phase === 'draft' && <SkillDraftOverlay clock={clock} scale={safeScale} />}
 
-      {phase === 'victory' && <VictoryOverlay reward={lastReward ?? {}} onCollect={goHome} />}
+      {phase === 'victory' && (
+        <VictoryOverlay reward={lastReward ?? {}} chapter={chapter} onCollect={goHome} />
+      )}
       {phase === 'defeat' && (
         <DefeatOverlay wavesCompleted={wavesCompleted} reward={lastReward ?? {}} onContinue={goHome} />
       )}

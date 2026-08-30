@@ -80,6 +80,10 @@ type BattleState = {
   round: Round | null;
   /** Per-run shuffle of the pachinko board pool -- see `plinkoLayoutForWave`. Re-rolled by `reset`. */
   plinkoOrder: number[];
+  /** The chapter this run belongs to -- snapshotted from the economy store by
+   * `reset`, so winning (which bumps the economy chapter) doesn't restyle the
+   * battle mid-victory-screen. Drives background, enemy art and panel colour. */
+  chapter: number;
   wavesCompleted: number;
   /** Coins/gems/xp granted for the run that just ended -- null mid-run. Read by the victory/defeat overlays. */
   lastReward: Reward | null;
@@ -160,6 +164,7 @@ function currentHeroBase(): typeof HeroBase {
 function freshState() {
   const heroBase = currentHeroBase();
   const heroLevel = levelFromXp(useEconomyStore.getState().xp).level;
+  const chapter = useEconomyStore.getState().chapter;
   return {
     phase: 'intro' as BattlePhase,
     wave: 1,
@@ -179,6 +184,7 @@ function freshState() {
     offers: null as SkillOffer[] | null,
     round: null as Round | null,
     plinkoOrder: shufflePlinkoOrder(),
+    chapter,
     wavesCompleted: 0,
     lastReward: null as Reward | null,
   };
@@ -269,6 +275,9 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       const wavesCompleted = state.wavesCompleted + 1;
       const reward = runReward(wavesCompleted, true, state.heroLevel);
       useEconomyStore.getState().grant(reward);
+      // Chapter advances only on a full clear. `state.chapter` (this run's
+      // snapshot) is untouched, so the victory screen keeps this chapter's look.
+      useEconomyStore.getState().advanceChapter();
       set({ phase: 'victory', wavesCompleted, lastReward: reward });
       return;
     }

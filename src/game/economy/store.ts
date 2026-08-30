@@ -21,6 +21,9 @@ type EconomyState = {
   ownedUpgrades: Record<string, true>;
   /** Epoch ms of the last free wheel spin, or null if never spun. */
   lastFreeSpinAt: number | null;
+  /** Ever-growing chapter number (1-based). Bumped once per victorious run;
+   * the location it maps to cycles every 4 (see `constants/chapters`). */
+  chapter: number;
   /** True once the persisted value has been read back from disk. */
   hydrated: boolean;
 
@@ -32,6 +35,8 @@ type EconomyState = {
   buyUpgrade: (step: UpgradeStep) => boolean;
   /** Records a free spin at `now`, driving the wheel screen's cooldown. */
   startFreeSpin: (now: number) => void;
+  /** Advances to the next chapter. Called once when a run is won. */
+  advanceChapter: () => void;
 };
 
 const initialState = {
@@ -40,6 +45,7 @@ const initialState = {
   xp: 0,
   ownedUpgrades: {} as Record<string, true>,
   lastFreeSpinAt: null as number | null,
+  chapter: 1,
   hydrated: false,
 };
 
@@ -84,16 +90,22 @@ export const useEconomyStore = create<EconomyState>()(
       },
 
       startFreeSpin: (now) => set({ lastFreeSpinAt: now }),
+
+      advanceChapter: () => set({ chapter: get().chapter + 1 }),
     }),
     {
       name: 'cup-economy-v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: ({ coins, gems, xp, ownedUpgrades, lastFreeSpinAt }) => ({
+      // A stored payload from before `chapter` existed simply has no key here;
+      // zustand's shallow merge then falls back to `initialState.chapter` (1),
+      // so no version bump / migration is needed.
+      partialize: ({ coins, gems, xp, ownedUpgrades, lastFreeSpinAt, chapter }) => ({
         coins,
         gems,
         xp,
         ownedUpgrades,
         lastFreeSpinAt,
+        chapter,
       }),
     },
   ),

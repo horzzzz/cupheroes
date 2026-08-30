@@ -30,10 +30,13 @@ export function PlinkoBoard({
   world,
   pad,
   layout,
+  wallColor = PLINKO_COLORS.wall,
 }: {
   world: PlinkoWorld;
   pad: SkImage | null;
   layout: PlinkoLayout;
+  /** Per-chapter wall tint; falls back to the shipped green. */
+  wallColor?: string;
 }) {
   const boostOpacity = useDerivedValue(() => (world.boostState.value >= 2 ? 0.25 : 1));
   const boostPad = layout.pad;
@@ -52,7 +55,7 @@ export function PlinkoBoard({
           width={w.hx * 2}
           height={w.hy * 2}
           r={w.r}
-          color={PLINKO_COLORS.wall}
+          color={wallColor}
           origin={{ x: w.cx, y: w.cy }}
           transform={[{ rotate: w.a }]}
         />

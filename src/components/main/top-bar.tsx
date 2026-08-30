@@ -62,8 +62,15 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
   const xp = useEconomyStore((s) => s.xp);
   const { level, progress } = levelFromXp(xp);
 
+  // The three action icons are an absolute overlay pinned to the right, but
+  // they run taller than the balance/level rows in flow beside them --
+  // reserve that height so the last icon (daily reward) isn't left
+  // overflowing the header's box, where a sibling below (e.g. the hub's
+  // dev long-press wrapper) can sit on top of it and eat its taps.
+  const ICON_STACK_HEIGHT = ICON_SIZE * 3 + 20 * 2;
+
   return (
-    <View>
+    <View style={{ minHeight: ICON_STACK_HEIGHT }}>
       <View style={{ position: 'absolute', right: 0, gap: 20 }}>
         <Pressable onPress={onOpenSettings}>
           <Image

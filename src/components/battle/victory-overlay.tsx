@@ -27,14 +27,22 @@ const AD_BUTTON_HEIGHT = 50;
  * flips to `victory` (not on this screen's own mount/collect) -- this only
  * displays what landed.
  */
-export function VictoryOverlay({ reward, onCollect }: { reward: Reward; onCollect: () => void }) {
+export function VictoryOverlay({
+  reward,
+  chapter,
+  onCollect,
+}: {
+  reward: Reward;
+  chapter: number;
+  onCollect: () => void;
+}) {
   return (
     <View style={styles.root} pointerEvents="auto">
       <View style={styles.backdrop} />
 
       <Image source={BANNER_ICON} style={styles.banner} contentFit="contain" />
 
-      <GameText style={styles.subtitle}>Chapter completed!</GameText>
+      <GameText style={styles.subtitle}>{`Chapter ${chapter} completed!`}</GameText>
 
       <RewardRow reward={reward} />
 

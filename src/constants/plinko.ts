@@ -185,11 +185,12 @@ export const PLINKO_TUNING = {
 } as const;
 
 export const PLINKO_COLORS = {
+  /** Default wall tint (chapter 1). Later chapters override it per location --
+   * see `PlinkoBoard`'s `wallColor` prop and `constants/chapters`. */
   wall: '#8DBD1B',
   /** Matches the flat blue of `pad-boost.webp` so the panel can be widened with
    * a plain RoundedRect behind the (centred, unstretched) chevron art. */
   boostPad: '#00A5FF',
-  gateLabel: '#FFFFFF',
 } as const;
 
 /** Board-fill diagnostic for picking `radius`/`liveCap`: fraction of the

@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { Pressable } from 'react-native';
 
 import { DailyBonusOverlay } from '@/components/daily/daily-bonus-overlay';
 import { ChapterHeader } from '@/components/main/chapter-header';
@@ -8,6 +9,7 @@ import { HeroShowcase } from '@/components/main/hero-showcase';
 import { TopBar } from '@/components/main/top-bar';
 import { SettingsModal } from '@/components/menu/settings-modal';
 import { ScreenColumn } from '@/components/ui/screen-column';
+import { useEconomyStore } from '@/game/economy/store';
 
 /**
  * Main hub screen — Figma node 1:26. Background and the bottom nav live in
@@ -17,6 +19,8 @@ import { ScreenColumn } from '@/components/ui/screen-column';
 export default function HomeScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [dailyVisible, setDailyVisible] = useState(false);
+  const chapter = useEconomyStore((s) => s.chapter);
+  const advanceChapter = useEconomyStore((s) => s.advanceChapter);
 
   return (
     <>
@@ -26,8 +30,12 @@ export default function HomeScreen() {
           onOpenWheel={() => router.push('/wheel')}
           onOpenDaily={() => setDailyVisible(true)}
         />
-        <ChapterHeader />
-        <HeroShowcase />
+        {/* DEV ONLY: long-press the chapter title to jump ahead a chapter
+            without winning 15 waves. Remove this Pressable wrapper to strip. */}
+        <Pressable onLongPress={__DEV__ ? advanceChapter : undefined} delayLongPress={600}>
+          <ChapterHeader chapter={chapter} />
+        </Pressable>
+        <HeroShowcase chapter={chapter} />
         <FightButton onPress={() => router.push('/battle')} />
       </ScreenColumn>
 

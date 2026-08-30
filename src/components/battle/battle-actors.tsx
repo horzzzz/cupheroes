@@ -126,7 +126,7 @@ export function BattleActors({ clock, sprites }: BattleActorsProps) {
         <SingleActor
           key={enemy.id}
           id={enemy.id}
-          actorKey={enemy.spec.spriteKey}
+          actorKey={enemy.spec.range}
           sprites={sprites}
           clock={clock}
           round={round}

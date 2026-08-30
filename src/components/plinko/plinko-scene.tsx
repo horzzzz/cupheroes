@@ -44,6 +44,8 @@ type PlinkoSceneProps = {
   boardScale: number;
   /** The board being played this wave -- walls, gates and optional boost pad. */
   layout: PlinkoLayout;
+  /** Wall colour for this chapter's location (defaults to the c1 green if omitted). */
+  wallColor?: string;
   /** True until the player has started the pour -- shows the "tap to pour" hint. */
   awaitingThrow: boolean;
   /** Starts the drop. Called on the first touch on the board. */
@@ -55,7 +57,7 @@ const clampAim = (x: number) => {
   return x < PLINKO_AIM_RANGE.min ? PLINKO_AIM_RANGE.min : x > PLINKO_AIM_RANGE.max ? PLINKO_AIM_RANGE.max : x;
 };
 
-export function PlinkoScene({ world, clock, boardScale, layout, awaitingThrow, onThrow }: PlinkoSceneProps) {
+export function PlinkoScene({ world, clock, boardScale, layout, wallColor, awaitingThrow, onThrow }: PlinkoSceneProps) {
   const width = PlinkoFrame.width * boardScale;
   const height = PlinkoFrame.height * boardScale;
   const texture = usePlinkoBallTexture(PLINKO_TUNING.radius, boardScale);
@@ -122,7 +124,7 @@ export function PlinkoScene({ world, clock, boardScale, layout, awaitingThrow, o
                 />
               )}
 
-              <PlinkoBoard world={world} pad={sprites.pad} layout={layout} />
+              <PlinkoBoard world={world} pad={sprites.pad} layout={layout} wallColor={wallColor} />
               {texture && <PlinkoBalls world={world} clock={clock} texture={texture} />}
               <PlinkoCups world={world} cup={sprites.cup} />
             </Group>
