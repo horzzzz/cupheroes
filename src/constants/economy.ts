@@ -21,7 +21,7 @@ export type Reward = {
 export const WAVE_CLEAR_REWARD: Reward = { coins: 4 };
 
 /** One-time bonus for beating the boss (wave 15), at player level 1. Also XP-free, same reasoning as `WAVE_CLEAR_REWARD`. */
-export const VICTORY_BONUS: Reward = { coins: 20, gems: 2 };
+export const VICTORY_BONUS: Reward = { coins: 20, gems: 10 };
 
 /**
  * Same compounding rate as the upgrade ladder's step cost (`GROWTH` in
@@ -64,9 +64,6 @@ const XP_GROWTH = 1.15;
 export function xpToNext(level: number): number {
   return Math.round(XP_BASE * XP_GROWTH ** (level - 1));
 }
-
-/** Free wheel spin cooldown -- matches the wheel screen's old local constant. */
-export const FREE_SPIN_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export const STARTING_BALANCE = { coins: 0, gems: 0, xp: 0 } as const;
 

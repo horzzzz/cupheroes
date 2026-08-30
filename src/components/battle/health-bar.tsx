@@ -74,8 +74,13 @@ export function HealthBar({
   const displayHealth = useDerivedValue(() =>
     Math.max(0, healthAt(clock.time.value, hitBeats ?? [], health)),
   );
+  // Fill width is in points, not a percentage: a `%` here resolves against
+  // the outer bar view (full `width`), so a 100%-wide fill starting at
+  // `left: FILL_INSET` spilled past the track's rounded right edge. Sizing
+  // it against the track's inner width keeps a full bar flush with the border.
+  const fillTrackWidth = (width - 2 * FILL_INSET) * scale;
   const fillStyle = useAnimatedStyle(() => ({
-    width: `${(maxHealth > 0 ? displayHealth.value / maxHealth : 0) * 100}%`,
+    width: (maxHealth > 0 ? displayHealth.value / maxHealth : 0) * fillTrackWidth,
   }));
   const left = useDerivedValue(() => (moveOffsetAt(clock.time.value, standX, moveBeat) + offsetX) * scale);
   const positionStyle = useAnimatedStyle(() => ({
@@ -159,7 +164,15 @@ export function HealthBar({
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-          <GameText style={{ fontFamily: Fonts.nunito, fontSize: 10 * scale, color: Colors.white }}>{armor}</GameText>
+          <GameText
+            numberOfLines={1}
+            style={{
+              fontFamily: Fonts.nunito,
+              fontSize: (Math.round(armor) > 99 ? 8 : 10) * scale,
+              color: Colors.white,
+            }}>
+            {Math.round(armor) > 99 ? '99+' : Math.round(armor)}
+          </GameText>
         </View>
       )}
     </Animated.View>

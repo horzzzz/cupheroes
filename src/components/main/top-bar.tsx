@@ -28,11 +28,34 @@ type TopBarProps = {
   onOpenDaily?: () => void;
 };
 
+/** Red "ready" dot shared by the wheel and daily-reward icons. */
+function ReadyBadge() {
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: -2,
+        right: -2,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#FF3B30',
+        borderWidth: 2,
+        borderColor: Colors.white,
+      }}
+    />
+  );
+}
+
 export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps) {
   const lastClaimDate = useDailyStore((s) => s.lastClaimDate);
   const claimedDay = useDailyStore((s) => s.claimedDay);
   const dailyReady =
     getDailyStatus({ lastClaimDate, claimedDay }, localDateKey(new Date())).phase === 'ready';
+
+  const lastFreeSpinAt = useEconomyStore((s) => s.lastFreeSpinAt);
+  const wheelReady =
+    lastFreeSpinAt === null || localDateKey(new Date(lastFreeSpinAt)) !== localDateKey(new Date());
 
   const coins = useEconomyStore((s) => s.coins);
   const gems = useEconomyStore((s) => s.gems);
@@ -55,6 +78,7 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
             style={{ width: ICON_SIZE, height: ICON_SIZE }}
             contentFit="contain"
           />
+          {wheelReady && <ReadyBadge />}
         </Pressable>
         <Pressable onPress={onOpenDaily}>
           <Image
@@ -62,21 +86,7 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
             style={{ width: ICON_SIZE, height: ICON_SIZE }}
             contentFit="contain"
           />
-          {dailyReady && (
-            <View
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                width: 12,
-                height: 12,
-                borderRadius: 6,
-                backgroundColor: '#FF3B30',
-                borderWidth: 2,
-                borderColor: Colors.white,
-              }}
-            />
-          )}
+          {dailyReady && <ReadyBadge />}
         </Pressable>
       </View>
 

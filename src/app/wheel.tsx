@@ -9,8 +9,8 @@ import { SpinButton } from '@/components/wheel/spin-button';
 import { WheelBackground } from '@/components/wheel/wheel-background';
 import { WheelHeader } from '@/components/wheel/wheel-header';
 import { WheelResultOverlay } from '@/components/wheel/wheel-result-overlay';
-import { FREE_SPIN_COOLDOWN_MS } from '@/constants/economy';
 import { MainScreen } from '@/constants/theme';
+import { localDateKey, msUntilLocalMidnight } from '@/game/daily/rewards';
 import { sectorReward } from '@/game/economy/rewards';
 import { useEconomyStore } from '@/game/economy/store';
 
@@ -33,18 +33,20 @@ export default function WheelScreen() {
   const startFreeSpin = useEconomyStore((s) => s.startFreeSpin);
   const grant = useEconomyStore((s) => s.grant);
 
-  const cooldownUntil = lastFreeSpinAt === null ? null : lastFreeSpinAt + FREE_SPIN_COOLDOWN_MS;
   const [now, setNow] = useState(() => Date.now());
   const [result, setResult] = useState<WheelSector | null>(null);
   const [spinning, setSpinning] = useState(false);
 
   useEffect(() => {
-    if (cooldownUntil === null) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [cooldownUntil]);
+  }, []);
 
-  const isLocked = cooldownUntil !== null && cooldownUntil > now;
+  // The free spin refreshes at local midnight, in step with the daily bonus
+  // (see `daily/store.ts`) rather than 24h after the last spin.
+  const isLocked =
+    lastFreeSpinAt !== null &&
+    localDateKey(new Date(lastFreeSpinAt)) === localDateKey(new Date(now));
 
   const handleSpinEnd = useCallback((sector: WheelSector) => {
     setSpinning(false);
@@ -89,7 +91,7 @@ export default function WheelScreen() {
             <SpinButton
               variant={isLocked ? 'locked' : 'primary'}
               disabled={spinning}
-              timerLabel={isLocked ? formatCountdown(cooldownUntil! - now) : undefined}
+              timerLabel={isLocked ? formatCountdown(msUntilLocalMidnight(new Date(now))) : undefined}
               onPress={() => startSpin(true)}
             />
           </View>
