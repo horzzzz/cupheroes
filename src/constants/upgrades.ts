@@ -80,6 +80,50 @@ const STEPS_BY_ID: Record<string, UpgradeStep> = Object.fromEntries(
 );
 
 /**
+ * `UPGRADE_STEPS` bottom-to-top, i.e. the order the ladder is actually
+ * *climbed* in: level 1's attack node first, then its health and defence,
+ * then level 2's attack, and so on. Every other export in this section reads
+ * off this order rather than off `UPGRADE_STEPS` directly.
+ */
+export const UPGRADE_CLIMB_ORDER: readonly UpgradeStep[] = [...UPGRADE_STEPS].reverse();
+
+const CLIMB_INDEX_BY_ID: Record<string, number> = Object.fromEntries(
+  UPGRADE_CLIMB_ORDER.map((step, index) => [step.id, index]),
+);
+
+/**
+ * Whether `step` can be bought right now, given what's already owned. The
+ * ladder is sequential -- attack, then health, then defence, level by level
+ * -- so a hero's stats stay proportional to `HeroBase` (1 : 10 : 0.4) the
+ * way the whole enemy-scaling curve in `battle.ts` assumes. Without this, a
+ * player could buy 10 attack steps and no defence/health ones and take
+ * several times the damage the wave table expects for their level, with no
+ * way to tell why they're dying.
+ */
+export function isStepBuyable(step: UpgradeStep, ownedUpgrades: Record<string, true>): boolean {
+  const index = CLIMB_INDEX_BY_ID[step.id];
+  if (index === undefined) return false;
+  if (ownedUpgrades[step.id]) return false;
+  return index === Object.keys(ownedUpgrades).length;
+}
+
+/**
+ * The reference hero's attack at player level `level` -- `HeroBase.attack`
+ * plus every ladder step up to (not including) that level, assuming they
+ * bought every step in order. This is the yardstick the whole wave table in
+ * `battle.ts` scales enemies against: a player who has kept pace with the
+ * ladder faces the numbers the table was tuned for; a player who hasn't
+ * faces something noticeably harder, which is the point -- see the balance
+ * plan. `heroBaseAttack` is passed in rather than imported to avoid a
+ * battle <-> upgrades constants cycle (same reasoning as `applyUpgrades`).
+ */
+export function referenceAttackForLevel(level: number, heroBaseAttack: number): number {
+  let attack = heroBaseAttack;
+  for (let l = 1; l < level; l += 1) attack += damageAt(l);
+  return attack;
+}
+
+/**
  * Hero base stats after every owned upgrade-ladder step is folded in --
  * `base` is `HeroBase` (kept out of this file to avoid an upgrades <->
  * battle constants dependency; the caller passes it in). Draft skills in

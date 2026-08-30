@@ -1,3 +1,5 @@
+import { referenceAttackForLevel } from '@/constants/upgrades';
+
 /**
  * Balance and layout constants for the auto-battle screen.
  *
@@ -5,6 +7,12 @@
  * `./upgrades.ts`: damage 10, health = damage x10, armor = damage x0.4) so
  * that hooking the ladder up later is a matter of reading the player's
  * current level, not re-deriving a battle-side balance curve.
+ *
+ * Every enemy/wave formula below is a *ratio* against the hero's own stats
+ * (see `wavesEnemies`), not an absolute number, so the whole stat space
+ * scales cleanly with `HeroBase` -- it briefly ran 10x these numbers
+ * (100/1000/40) for rounding headroom, then got reverted per feedback that
+ * the game should show human-sized numbers.
  */
 
 export const WAVE_COUNT = 15;
@@ -57,13 +65,20 @@ export const Timing = {
    * phase's real gap is computed from the round's own beat count (see
    * `use-battle-scheduler`) -- kept as the reference pacing figure. */
   turnInterval: 3.3,
-  /** Gap between beats within a round (hero's hit, then each enemy's in turn)
-   * -- wide enough that one attack's lunge-and-return fully finishes and
-   * there's a clear beat of stillness before the next actor goes, per
-   * feedback that attacks otherwise blurred into a continuous flurry. */
-  beatStagger: 1.6,
+  /** Gap between the hero's beat(s) and the enemies' volley, and between one
+   * round and the next -- wide enough that one attack's lunge-and-return
+   * fully finishes and there's a clear beat of stillness before the next
+   * actor goes, per feedback that attacks otherwise blurred into a
+   * continuous flurry. */
+  beatStagger: 1.05,
+  /** Gap between one enemy's beat and the next *within* the same round's
+   * enemy volley -- shorter than `beatStagger`, since a full wave's worth of
+   * packs at the wave-15 growth curve would otherwise run to 20+ minutes of
+   * combat (see the balance plan). The hero's own beat(s) still get the
+   * full `beatStagger` before and after. */
+  enemyVolleyStagger: 0.4,
   /** Lunge-and-return duration for an attack beat. */
-  attackDuration: 0.8,
+  attackDuration: 0.55,
   /** A melee enemy's single approach step toward the hero. */
   moveStep: 0.8,
   /** How long a hit-flash/recoil lasts on the target. */
@@ -86,37 +101,137 @@ export const Timing = {
 export type SpriteKey = 'hero' | 'enemy1' | 'enemy2';
 export type EnemyRange = 'melee' | 'ranged';
 
-type EnemyArchetype = {
-  spriteKey: Extract<SpriteKey, 'enemy1' | 'enemy2'>;
-  range: EnemyRange;
-  baseHealth: number;
-  baseAttack: number;
-  baseArmor: number;
-};
-
 // enemy1 (bee) flies -- it's the ranged archetype; enemy2 (goblin) fights
-// with a blade, up close. A pack alternates them (see `wavesEnemies`).
-// Attack values deliberately low for now -- first-pass balance, tuned down
-// again per playtest feedback that the hero was taking damage too fast;
-// real numbers come later once the upgrade ladder is wired up.
-const ENEMY_ARCHETYPES: readonly EnemyArchetype[] = [
-  { spriteKey: 'enemy1', range: 'ranged', baseHealth: 22, baseAttack: 2, baseArmor: 0 },
-  { spriteKey: 'enemy2', range: 'melee', baseHealth: 34, baseAttack: 3, baseArmor: 0 },
-];
-
-const WAVE_GROWTH = 1.09;
-// The boss (wave 15) is a stand-in enlarged enemy2 -- no dedicated boss
-// sprite exists yet, see the plan's assumptions.
-const BOSS_HEALTH_MULT = 4.5;
-const BOSS_ATTACK_MULT = 1.7;
+// with a blade, up close. A pack alternates them (see `WAVE_TABLE`).
 export const BOSS_VISUAL_SCALE = 1.4;
 
-/** How many enemies are in a pack for a given (non-boss) wave -- ramps up to the 3-enemy cap. */
-export function enemyCountForWave(wave: number): number {
-  if (wave === BOSS_WAVE) return 1;
-  if (wave <= 5) return 2;
-  return 3;
+/**
+ * One enemy in a wave's composition table: its archetype and how many hits
+ * from a *reference* hero (see `referenceAttackForLevel`) it takes to kill.
+ * `wavesEnemies` turns this into real stats for the player's actual level.
+ */
+type PackEnemySpec = { range: EnemyRange; htk: number };
+
+function melee(htk: number): PackEnemySpec {
+  return { range: 'melee', htk };
 }
+function ranged(htk: number): PackEnemySpec {
+  return { range: 'ranged', htk };
+}
+
+/**
+ * Hand-authored composition for every wave's two packs (one for the boss
+ * wave). A melee enemy spends its first `MELEE_APPROACH_TURNS` turns closing
+ * the distance, so `M(n)` only gets `n - MELEE_APPROACH_TURNS` swings in
+ * before it dies to a reference hero -- `M(3)` never lands a hit, which is
+ * how wave 1 guarantees zero damage taken. Composition order matters: the
+ * hero always targets the nearest living enemy (`nearestLiving` in
+ * `combat.ts`), and melee enemies sit in the nearer slots (`assignPackSlots`
+ * in this file), so listing melee first here reads the same "who dies
+ * first" order the fight actually plays out in.
+ *
+ * See the balance plan for the full derivation of both this table and
+ * `BITE` below -- they were tuned together against a simulation harness,
+ * not picked independently.
+ */
+const WAVE_TABLE: Record<number, readonly (readonly PackEnemySpec[])[]> = {
+  1: [[melee(3)], [melee(3)]],
+  2: [[melee(5)], [ranged(3)]],
+  3: [
+    [melee(3), ranged(1)],
+    [melee(3), ranged(1)],
+  ],
+  4: [
+    [melee(4), ranged(1)],
+    [melee(3), ranged(2)],
+  ],
+  5: [
+    [melee(4), ranged(2)],
+    [melee(4), ranged(2)],
+  ],
+  6: [
+    [melee(3), ranged(1), ranged(1)],
+    [melee(4), melee(3), ranged(1)],
+  ],
+  7: [
+    [melee(3), ranged(2), ranged(1)],
+    [melee(4), melee(3), ranged(2)],
+  ],
+  8: [
+    [melee(4), ranged(2), ranged(1)],
+    [melee(4), melee(3), ranged(2)],
+  ],
+  9: [
+    [melee(4), ranged(2), ranged(2)],
+    [melee(5), melee(3), ranged(2)],
+  ],
+  10: [
+    [melee(4), ranged(2), ranged(2)],
+    [melee(5), melee(3), ranged(2)],
+  ],
+  11: [
+    [melee(4), ranged(3), ranged(2)],
+    [melee(5), melee(3), ranged(2)],
+  ],
+  12: [
+    [melee(5), ranged(3), ranged(2)],
+    [melee(5), melee(4), ranged(2)],
+  ],
+  13: [
+    [melee(5), ranged(3), ranged(2)],
+    [melee(5), melee(4), ranged(3)],
+  ],
+  14: [
+    [melee(5), ranged(3), ranged(3)],
+    [melee(6), melee(4), ranged(3)],
+  ],
+  15: [[melee(14)]],
+};
+
+/**
+ * Damage a wave's enemies deal, as a percentage of the reference hero's max
+ * health per landed hit (index 0 = wave 1). Rises steadily wave over wave;
+ * the boss's own multiplier (see `wavesEnemies`) sits on top of wave 14's
+ * figure, not this array's last entry.
+ */
+const BITE: readonly number[] = [
+  0, 4.7, 4.9, 5.1, 5.3, 5.54, 5.8, 6.06, 6.38, 6.68, 6.98, 7.32, 7.66, 8.04, 11.2,
+];
+
+/**
+ * Balance snapshot from `npm run balance` (400 runs/scenario) after this
+ * curve, `WAVE_TABLE` and the skill prices/values in `constants/skills.ts`
+ * were tuned together against it, and after the level-1-100 stat rescale
+ * was undone (`HeroBase` back to 100/10/4) and `runReward`
+ * (`game/battle/rewards.ts`) stopped paying XP as a per-level-scaled,
+ * per-wave sum -- see that function's doc comment for why the old version
+ * let a level 1 character snowball to unplayable levels within a few dozen
+ * runs, which is what actually caused "level 11 is impossible" reports even
+ * though this curve is itself level-invariant by construction:
+ *
+ *   - wave 1: 0 damage taken, every run, every level (structural, not luck).
+ *   - wave 2: melee lands its 1 hit, ranged lands both of its 2 -- exact.
+ *   - no draft purchases at all: dies wave 6, every run.
+ *   - a greedy draft (buys the cheapest affordable card every offer) at a
+ *     reference-levelled hero: ~44-52% win rate at levels 5/10/20, ~61-64%
+ *     at level 1 (small numbers round coarser at that scale, so a level-1
+ *     run reads a little easier -- fine, reads as an easy first level, not
+ *     as the level-dependent cliff the bug above caused). Most losses fall
+ *     on wave 9-10.
+ *   - a hero missing the top 6 ladder steps for their level: 0% win rate,
+ *     dies wave 3 -- falling behind the ladder is punished hard.
+ *   - ~7.5-8.7 minutes of combat at x1 speed (not counting pachinko/draft
+ *     interludes) -- still longer than the plan's original 4-7 minute
+ *     target; open for a follow-up pacing pass, not blocking this one.
+ *   - not yet verified: no single skill should swing win rate by more than
+ *     ~35 points on its own (the harness's draft AI doesn't isolate one
+ *     skill at a time).
+ */
+
+/** How many attacks the boss (wave 15) makes per turn, instead of the usual one. */
+export const BOSS_ATTACKS_PER_TURN = 2;
+/** Flat armor the boss carries, as a fraction of the reference hero's attack. */
+const BOSS_ARMOR_RATIO = 0.1;
 
 // Design-frame x per slot, keyed by how many enemies share the row. Both
 // types enter and settle near the right edge, side by side -- a melee
@@ -215,28 +330,45 @@ export type EnemySpec = {
   ballDrop: number;
   boss: boolean;
   visualScale: number;
+  /** Attacks the enemy makes per turn, all landing (or missing) independently -- 1 for every enemy but the boss. */
+  attacksPerTurn: number;
 };
 
-/** Full enemy lineup for a wave: composition, stats and ball drop, scaled by wave number. */
-export function wavesEnemies(wave: number): EnemySpec[] {
-  const count = enemyCountForWave(wave);
-  const scale = WAVE_GROWTH ** (wave - 1);
-  const boss = wave === BOSS_WAVE;
+/** How much of the reference hero's own armor a landed hit needs to net out to, so `bite`% of max health actually goes through `mitigatedDamage`. */
+const HERO_ARMOR_RATIO = HeroBase.armor / HeroBase.attack;
 
-  return Array.from({ length: count }, (_, i) => {
-    const archetype = ENEMY_ARCHETYPES[i % ENEMY_ARCHETYPES.length];
-    return {
-      spriteKey: archetype.spriteKey,
-      range: archetype.range,
-      maxHealth: Math.round(archetype.baseHealth * scale * (boss ? BOSS_HEALTH_MULT : 1)),
-      attack: Math.round(archetype.baseAttack * scale * (boss ? BOSS_ATTACK_MULT : 1)),
-      armor: Math.round(archetype.baseArmor * scale),
-      // One ball per enemy, always -- including the boss.
-      ballDrop: 1,
-      boss,
-      visualScale: boss ? BOSS_VISUAL_SCALE : 1,
-    };
-  });
+/**
+ * Full enemy lineup for one pack: composition from `WAVE_TABLE`, stats
+ * scaled off the *reference* hero at `level` (see `referenceAttackForLevel`)
+ * -- not off the actual player's stats, so a player who kept pace with the
+ * upgrade ladder meets the numbers this table was tuned for, and one who
+ * fell behind meets something harder (the point of autolevelling by player
+ * level, per the balance plan).
+ */
+export function wavesEnemies(wave: number, half: number, level: number): EnemySpec[] {
+  const boss = wave === BOSS_WAVE;
+  const packs = WAVE_TABLE[wave] ?? WAVE_TABLE[BOSS_WAVE];
+  const pack = packs[Math.min(half, packs.length - 1)] ?? [];
+
+  const referenceAttack = referenceAttackForLevel(level, HeroBase.attack);
+  const bite = BITE[wave - 1] ?? BITE[BITE.length - 1];
+  // mitigatedDamage subtracts the hero's own armor before the hit lands, so
+  // the enemy's nominal attack has to overshoot `bite`% of hero health by
+  // exactly that much for the *landed* damage to match the table.
+  const attack = Math.round(referenceAttack * (bite / 10 + HERO_ARMOR_RATIO));
+
+  return pack.map((enemy) => ({
+    spriteKey: enemy.range === 'melee' ? 'enemy2' : 'enemy1',
+    range: enemy.range,
+    maxHealth: Math.round(referenceAttack * enemy.htk),
+    attack,
+    armor: boss ? Math.round(referenceAttack * BOSS_ARMOR_RATIO) : 0,
+    // Two balls per enemy, always -- including the boss.
+    ballDrop: 2,
+    boss,
+    visualScale: boss ? BOSS_VISUAL_SCALE : 1,
+    attacksPerTurn: boss ? BOSS_ATTACKS_PER_TURN : 1,
+  }));
 }
 
 /** Flat damage mitigation -- matches the hero's on-screen "defence" badge being a small flat number, not a percentage. */

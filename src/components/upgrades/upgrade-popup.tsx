@@ -39,6 +39,8 @@ const PRICE_UNAFFORDABLE = '#ff4e4e';
 type UpgradePopupProps = {
   step: UpgradeStep;
   locked?: boolean;
+  /** Player level is high enough, but a lower climb step isn't owned yet -- see `isStepBuyable`. Mutually exclusive with `locked` in practice (a row that's still level-locked never renders this true), but kept separate so the copy can tell the two apart. */
+  sequenceLocked?: boolean;
   /** Already bought -- shows an inert "OWNED" pill instead of the buy button. */
   owned?: boolean;
   /** Player level the step asks for; only shown while it is locked. */
@@ -53,6 +55,7 @@ type UpgradePopupProps = {
 export function UpgradePopup({
   step,
   locked,
+  sequenceLocked,
   owned,
   requiredLevel,
   coins,
@@ -108,7 +111,7 @@ export function UpgradePopup({
         </GameText>
       </View>
 
-      {locked ? (
+      {locked || sequenceLocked ? (
         <View
           style={[
             StyleSheet.absoluteFill,
@@ -122,7 +125,7 @@ export function UpgradePopup({
               color: Colors.white,
               textAlign: 'center',
             }}>
-            Reach level {requiredLevel} to unlock
+            {locked ? `Reach level ${requiredLevel} to unlock` : 'Buy the previous upgrade first'}
           </GameText>
         </View>
       ) : (

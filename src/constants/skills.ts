@@ -53,60 +53,66 @@ export type SkillDef = {
 };
 
 export const SKILLS: Record<SkillId, SkillDef> = {
+  // Tier 1 (from wave 2) -- level 1 is free on every tier-1 skill, per design.
   attack: {
     id: 'attack',
     icon: require('@/assets/images/skills/attack.webp'),
     maxLevel: 3,
-    values: [10, 20, 30],
-    prices: [0, 25, 50],
+    values: [25, 50, 100],
+    prices: [0, 135, 378],
     minWave: 2,
     weight: 10,
     kind: 'mod',
     enabled: true,
     label: (v) => `Attack +${v}%`,
   },
+  // A damage-reduction percentage now, not a flat armor bonus -- a flat
+  // number stops mattering once enemy hits scale to percent-of-health, see
+  // the balance plan.
   defence: {
     id: 'defence',
     icon: require('@/assets/images/skills/defence.webp'),
     maxLevel: 3,
-    values: [3, 6, 10],
-    prices: [0, 40, 120],
+    values: [10, 20, 30],
+    prices: [0, 171, 441],
     minWave: 2,
     weight: 9,
     kind: 'mod',
     enabled: true,
-    label: (v) => `Defence +${v}`,
+    label: (v) => `Damage taken -${v}%`,
   },
   maxHealth: {
     id: 'maxHealth',
     icon: require('@/assets/images/skills/max-health.webp'),
-    maxLevel: 4,
-    values: [40, 70, 100, 130],
-    prices: [0, 150, 500, 1200],
+    maxLevel: 3,
+    values: [35, 70, 100],
+    prices: [0, 207, 513],
     minWave: 2,
     weight: 9,
     kind: 'mod',
     enabled: true,
     label: (v) => `Max health +${v}%`,
   },
+  // A percentage of max health now, not a flat HP amount -- same reasoning as `defence`.
   heal: {
     id: 'heal',
     icon: require('@/assets/images/skills/heal.webp'),
     maxLevel: 3,
-    values: [40, 90, 180],
-    prices: [0, 60, 160],
+    values: [20, 35, 55],
+    prices: [0, 153, 405],
     minWave: 2,
     weight: 8,
     kind: 'instant',
     enabled: true,
-    label: (v) => `Heal +${v} HP`,
+    label: (v) => `Heal +${v}% HP`,
   },
+  // Tier 2 (from wave 5) -- no free level; these are strictly stronger than tier 1.
   miss: {
     id: 'miss',
     icon: require('@/assets/images/skills/miss.webp'),
-    maxLevel: 5,
-    values: [20, 25, 30, 35, 40],
-    prices: [0, 80, 200, 450, 900],
+    maxLevel: 3,
+    values: [15, 30, 45],
+    prices: [144, 342, 738],
     minWave: 5,
     weight: 6,
     kind: 'mod',
@@ -116,21 +122,24 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   crit: {
     id: 'crit',
     icon: require('@/assets/images/skills/crit.webp'),
-    maxLevel: 4,
-    values: [10, 18, 26, 35],
-    prices: [0, 80, 200, 450],
+    maxLevel: 3,
+    values: [15, 30, 45],
+    prices: [126, 315, 684],
     minWave: 5,
     weight: 6,
     kind: 'mod',
     enabled: true,
     label: (v) => `Crit chance +${v}%`,
   },
+  // Capped in the single digits -- the hero's own hit already removes ~10%
+  // of its max health from an enemy per swing, so lifesteal compounds fast;
+  // see the balance plan.
   lifesteal: {
     id: 'lifesteal',
     icon: require('@/assets/images/skills/lifesteal.webp'),
-    maxLevel: 4,
-    values: [8, 14, 20, 26],
-    prices: [0, 90, 220, 500],
+    maxLevel: 3,
+    values: [15, 30, 45],
+    prices: [153, 369, 1000],
     minWave: 5,
     weight: 5,
     kind: 'mod',
@@ -140,45 +149,50 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   balls: {
     id: 'balls',
     icon: require('@/assets/images/skills/balls.webp'),
-    maxLevel: 3,
-    values: [1, 2, 3],
-    prices: [0, 70, 200],
+    maxLevel: 2,
+    values: [1, 2],
+    prices: [87, 125],
     minWave: 5,
     weight: 5,
     kind: 'mod',
     enabled: true,
     label: (v) => `Balls per kill +${v}`,
   },
+  // Tier 3 (from wave 8) -- the run's strongest, priciest skills.
   extraTurn: {
     id: 'extraTurn',
     icon: require('@/assets/images/skills/extra-turn.webp'),
-    maxLevel: 3,
-    values: [20, 30, 40],
-    prices: [0, 180, 450],
+    maxLevel: 2,
+    values: [15, 30],
+    prices: [342, 738],
     minWave: 8,
     weight: 4,
     kind: 'mod',
     enabled: true,
     label: (v) => `Extra turn chance +${v}%`,
   },
+  // One level only: an extra volley target, at reduced damage
+  // (`ARROW_SPLASH_MULT` in `game/battle/skills.ts`) -- does nothing against
+  // a lone boss, so it can't single-handedly decide a run the way an
+  // unconditional damage multiplier would.
   arrows: {
     id: 'arrows',
     icon: require('@/assets/images/skills/arrows.webp'),
-    maxLevel: 2,
-    values: [1, 2],
-    prices: [0, 350],
+    maxLevel: 1,
+    values: [1],
+    prices: [400],
     minWave: 8,
     weight: 3,
     kind: 'mod',
     enabled: true,
-    label: (v) => `+${v} arrow${v > 1 ? 's' : ''} per attack`,
+    label: () => `+1 arrow, 2nd target`,
   },
   bomb: {
     id: 'bomb',
     icon: require('@/assets/images/skills/bomb.webp'),
-    maxLevel: 3,
-    values: [4, 7, 12],
-    prices: [0, 130, 320],
+    maxLevel: 2,
+    values: [1.5, 2.5],
+    prices: [252, 567],
     minWave: 8,
     weight: 4,
     kind: 'instant',
@@ -190,7 +204,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
     icon: require('@/assets/images/skills/balls.webp'),
     maxLevel: 3,
     values: [20, 40, 60],
-    prices: [0, 60, 180],
+    prices: [0, 108, 324],
     minWave: 2,
     weight: 0,
     kind: 'mod',
@@ -203,7 +217,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
 export const CRIT_MULT = 2;
 
 /** How many bonus hero turns one round can chain from `extraTurn`, regardless of how the rolls land. */
-export const EXTRA_TURN_CAP = 2;
+export const EXTRA_TURN_CAP = 1;
 
 /** Effect value the player currently owns for a skill (0 = not owned). */
 export function skillValue(id: SkillId, level: number): number {

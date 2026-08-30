@@ -28,6 +28,8 @@ const LOCKED_TINT = 'rgba(255,27,255,0.6)';
 type UpgradeRowProps = {
   step: UpgradeStep;
   locked: boolean;
+  /** Player level is high enough, but a lower climb step (attack -> health -> defence, level by level) isn't owned yet -- see `isStepBuyable`. */
+  sequenceLocked: boolean;
   owned: boolean;
   selected: boolean;
   /** Draws the fence that closes off the locked stretch above this row. */
@@ -56,6 +58,7 @@ type UpgradeRowProps = {
 export const UpgradeRow = memo(function UpgradeRow({
   step,
   locked,
+  sequenceLocked,
   owned,
   selected,
   showGate,
@@ -67,6 +70,11 @@ export const UpgradeRow = memo(function UpgradeRow({
   onClose,
   onBuy,
 }: UpgradeRowProps) {
+  // Both kinds of lock render the same greyed-out node -- the player-level
+  // fence (`showGate`, below) only ever marks the level kind, so the two
+  // reasons stay visually distinct even though the node art doesn't.
+  const visuallyLocked = locked || sequenceLocked;
+
   return (
     <View style={{ height: ROW_HEIGHT }}>
       {locked ? (
@@ -85,7 +93,7 @@ export const UpgradeRow = memo(function UpgradeRow({
 
       <TubeBar
         orientation="vertical"
-        palette={locked ? LockedGreyTube : GoldTube}
+        palette={visuallyLocked ? LockedGreyTube : GoldTube}
         borderWidth={2}
         glow={false}
         style={{
@@ -101,7 +109,7 @@ export const UpgradeRow = memo(function UpgradeRow({
       <UpgradeNode
         kind={step.kind}
         value={step.value}
-        locked={locked}
+        locked={visuallyLocked}
         owned={owned}
         onPress={() => onSelect(step.id)}
         style={{
@@ -159,6 +167,7 @@ export const UpgradeRow = memo(function UpgradeRow({
         <UpgradePopup
           step={step}
           locked={locked}
+          sequenceLocked={sequenceLocked}
           owned={owned}
           requiredLevel={requiredPlayerLevel(step.level)}
           coins={coins}

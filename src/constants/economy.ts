@@ -11,11 +11,47 @@ export type Reward = {
   xp?: number;
 };
 
-/** Coins + XP dropped per wave cleared, on top of the run's final bonus. */
-export const WAVE_CLEAR_REWARD: Reward = { coins: 25, xp: 20 };
+/**
+ * Coins dropped per wave cleared, on top of the run's final bonus, at
+ * player level 1. XP is *not* part of this reward -- a run's XP payout is
+ * computed straight from `xpToNext` in `runReward` (`game/battle/rewards.ts`),
+ * not summed per wave, so it can never be more than the fixed fraction of a
+ * level the design calls for (see that function's doc comment for why).
+ */
+export const WAVE_CLEAR_REWARD: Reward = { coins: 4 };
 
-/** One-time bonus for beating the boss (wave 15). */
-export const VICTORY_BONUS: Reward = { coins: 150, xp: 100, gems: 2 };
+/** One-time bonus for beating the boss (wave 15), at player level 1. Also XP-free, same reasoning as `WAVE_CLEAR_REWARD`. */
+export const VICTORY_BONUS: Reward = { coins: 20, gems: 2 };
+
+/**
+ * Same compounding rate as the upgrade ladder's step cost (`GROWTH` in
+ * `upgrades.ts`). Coin rewards scale with it so "runs needed to afford the
+ * next ladder step" stays roughly constant as the player levels -- without
+ * this, a flat reward falls further behind the ladder's price every level,
+ * and the reference-hero autolevelling curve in `battle.ts` becomes
+ * unreachable past the first few levels. Gems (a premium currency, and a
+ * small flat amount to begin with) are deliberately left unscaled. XP
+ * doesn't go through this at all any more -- see `WAVE_CLEAR_REWARD`.
+ */
+export const REWARD_GROWTH = 1.183;
+
+function scaleReward(base: Reward, level: number): Reward {
+  const mult = REWARD_GROWTH ** (level - 1);
+  const scaled: Reward = {};
+  if (base.coins !== undefined) scaled.coins = Math.round(base.coins * mult);
+  if (base.gems !== undefined) scaled.gems = base.gems;
+  return scaled;
+}
+
+/** `WAVE_CLEAR_REWARD` scaled for a player at `level`. */
+export function waveClearReward(level: number): Reward {
+  return scaleReward(WAVE_CLEAR_REWARD, level);
+}
+
+/** `VICTORY_BONUS` scaled for a player at `level`. */
+export function victoryBonus(level: number): Reward {
+  return scaleReward(VICTORY_BONUS, level);
+}
 
 /**
  * Player-level curve. `xpToNext(level)` is the XP needed to go from `level`

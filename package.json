@@ -40,7 +40,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "balance": "node scripts/balance/run.mjs"
   },
   "private": true
 }

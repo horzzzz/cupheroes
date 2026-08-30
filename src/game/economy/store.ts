@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import type { UpgradeStep } from '@/constants/upgrades';
+import { isStepBuyable, type UpgradeStep } from '@/constants/upgrades';
 import type { Reward } from '@/constants/economy';
 
 /**
@@ -74,7 +74,10 @@ export const useEconomyStore = create<EconomyState>()(
 
       buyUpgrade: (step) => {
         const state = get();
-        if (state.ownedUpgrades[step.id]) return false;
+        // The ladder is sequential -- attack, then health, then defence,
+        // level by level (see `isStepBuyable`) -- so the hero's stats stay
+        // proportional to `HeroBase` the way the wave-scaling curve assumes.
+        if (!isStepBuyable(step, state.ownedUpgrades)) return false;
         if (!get().spend({ coins: step.cost })) return false;
         set({ ownedUpgrades: { ...get().ownedUpgrades, [step.id]: true } });
         return true;

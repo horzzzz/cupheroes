@@ -24,18 +24,23 @@ export type SkillOffer = {
   price: number;
 };
 
-/** Per-round combat effects -- consumed by `resolveRound`. Stat buffs (attack/health/armor) are applied to the hero in the store, not here. */
+/** Fixed damage multiplier a secondary `arrows` target takes, relative to the primary target's hit. */
+export const ARROW_SPLASH_MULT = 0.6;
+
+/** Per-round combat effects -- consumed by `resolveRound`. Stat buffs (attack/health) are applied to the hero in the store, not here. */
 export type CombatMods = {
   enemyMissChance: number;
   critChance: number;
   critMult: number;
   extraTurnChance: number;
   extraTurnCap: number;
-  /** Total hero attack beats per turn -- 1 with no `arrows` skill. */
+  /** Distinct enemy targets the hero's volley hits -- 1 with no `arrows` skill; every target past the first takes `ARROW_SPLASH_MULT` damage. */
   arrows: number;
   /** Fraction of damage the hero deals that heals it back. */
   lifesteal: number;
   bonusBallsPerKill: number;
+  /** Fraction shaved off every landed enemy hit, after armor mitigation -- `defence` skill. */
+  damageReduction: number;
 };
 
 export const NO_MODS: CombatMods = {
@@ -47,6 +52,7 @@ export const NO_MODS: CombatMods = {
   arrows: 1,
   lifesteal: 0,
   bonusBallsPerKill: 0,
+  damageReduction: 0,
 };
 
 export type AggregatedSkills = {
@@ -54,8 +60,6 @@ export type AggregatedSkills = {
   attackMult: number;
   /** Multiply `HeroBase.maxHealth` by this. */
   maxHealthMult: number;
-  /** Add to `HeroBase.armor`. */
-  bonusArmor: number;
   combat: CombatMods;
 };
 
@@ -66,7 +70,6 @@ export function aggregateSkills(owned: OwnedSkills): AggregatedSkills {
   return {
     attackMult: 1 + val('attack') / 100,
     maxHealthMult: 1 + val('maxHealth') / 100,
-    bonusArmor: val('defence'),
     combat: {
       ...NO_MODS,
       enemyMissChance: val('miss') / 100,
@@ -75,6 +78,7 @@ export function aggregateSkills(owned: OwnedSkills): AggregatedSkills {
       arrows: 1 + val('arrows'),
       lifesteal: val('lifesteal') / 100,
       bonusBallsPerKill: val('balls'),
+      damageReduction: val('defence') / 100,
     },
   };
 }
@@ -100,9 +104,15 @@ function weightedPick(pool: SkillId[], rng: () => number): SkillId {
 /**
  * Three distinct cards for a draft. Weighted by skill tier so early waves
  * lean on the cheap skills. Guarantees at least one card the player can
- * afford: if every roll came out too expensive, the cheapest is forced to
- * free -- the design has no "skip" button, so a draft must always be
- * completable (mirrors the mocked screen, where the middle card is FREE).
+ * afford: if every roll came out too expensive, the cheapest is discounted
+ * down to exactly what the player has -- the design has no "skip" button,
+ * so a draft must always be completable (mirrors the mocked screen, where
+ * the middle card is FREE, which is exactly what this does for a player
+ * with 0 balls). Discounting to `balls` rather than flat to 0 matters once
+ * tier-2/3 prices are real money (see the balance plan): forcing an
+ * expensive card free every time the player's a little short would hand out
+ * a windfall on a schedule instead of a price tag, and a greedy buyer would
+ * never pay full price for anything past the free opening tier.
  */
 export function rollOffers(
   wave: number,
@@ -125,7 +135,7 @@ export function rollOffers(
 
   if (offers.length > 0 && !offers.some((o) => o.price <= balls)) {
     const cheapest = offers.reduce((a, b) => (b.price < a.price ? b : a));
-    cheapest.price = 0;
+    cheapest.price = Math.min(cheapest.price, balls);
   }
 
   return offers;

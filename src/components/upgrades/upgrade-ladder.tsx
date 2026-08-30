@@ -6,6 +6,12 @@ import { UPGRADE_LEVEL_COUNT, UPGRADE_STEPS, type UpgradeStep } from '@/constant
 
 const STEPS_PER_LEVEL = 3;
 const LAST_INDEX = UPGRADE_STEPS.length - 1;
+// `UPGRADE_STEPS` runs top-down (level 100 first); the ladder is climbed
+// bottom-up (see `isStepBuyable` in `constants/upgrades.ts`), so a row's
+// climb-order position is its mirror from the array's end.
+function climbIndexOf(index: number): number {
+  return LAST_INDEX - index;
+}
 // Half a node's worth of slack under the bottom rung, as in the design.
 const PADDING_BOTTOM = 15;
 const PADDING_TOP = 20;
@@ -44,6 +50,10 @@ export function UpgradeLadder({ unlockedLevels, coins, ownedUpgrades, onBuy }: U
 
   // Locked steps are the high levels, so they are exactly the head of the list.
   const lockedCount = Math.max(UPGRADE_LEVEL_COUNT - unlockedLevels, 0) * STEPS_PER_LEVEL;
+  // The ladder is bought in climb order (see `isStepBuyable`); by that
+  // invariant the count of owned steps *is* the climb index of the next one
+  // still buyable, so no per-row lookup is needed.
+  const ownedCount = Object.keys(ownedUpgrades).length;
 
   const handleClose = useCallback(() => setSelectedId(null), []);
   const handleSelect = useCallback(
@@ -53,23 +63,27 @@ export function UpgradeLadder({ unlockedLevels, coins, ownedUpgrades, onBuy }: U
   const handleBuy = useCallback((step: UpgradeStep) => onBuy?.(step), [onBuy]);
 
   const renderItem = useCallback(
-    ({ item, index }: ListRenderItemInfo<UpgradeStep>) => (
-      <UpgradeRow
-        step={item}
-        locked={index < lockedCount}
-        owned={!!ownedUpgrades[item.id]}
-        selected={item.id === selectedId}
-        showGate={index === lockedCount && lockedCount > 0}
-        showBadge={item.kind === 'attack'}
-        railTop={index === 0 ? ROW_HEIGHT / 2 : 0}
-        railBottom={index === LAST_INDEX ? ROW_HEIGHT / 2 : 0}
-        coins={coins}
-        onSelect={handleSelect}
-        onClose={handleClose}
-        onBuy={handleBuy}
-      />
-    ),
-    [coins, handleBuy, handleClose, handleSelect, lockedCount, ownedUpgrades, selectedId],
+    ({ item, index }: ListRenderItemInfo<UpgradeStep>) => {
+      const owned = !!ownedUpgrades[item.id];
+      return (
+        <UpgradeRow
+          step={item}
+          locked={index < lockedCount}
+          sequenceLocked={!owned && climbIndexOf(index) > ownedCount}
+          owned={owned}
+          selected={item.id === selectedId}
+          showGate={index === lockedCount && lockedCount > 0}
+          showBadge={item.kind === 'attack'}
+          railTop={index === 0 ? ROW_HEIGHT / 2 : 0}
+          railBottom={index === LAST_INDEX ? ROW_HEIGHT / 2 : 0}
+          coins={coins}
+          onSelect={handleSelect}
+          onClose={handleClose}
+          onBuy={handleBuy}
+        />
+      );
+    },
+    [coins, handleBuy, handleClose, handleSelect, lockedCount, ownedCount, ownedUpgrades, selectedId],
   );
 
   return (

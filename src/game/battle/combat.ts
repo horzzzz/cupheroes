@@ -1,5 +1,5 @@
 import { HERO_POS, Timing, meleeHasArrived, meleeStepX, mitigatedDamage, type EnemySpec } from '@/constants/battle';
-import { NO_MODS, type CombatMods } from '@/game/battle/skills';
+import { ARROW_SPLASH_MULT, NO_MODS, type CombatMods } from '@/game/battle/skills';
 
 /**
  * Pure combat math -- no React, no store, no clock. Given a snapshot of the
@@ -93,6 +93,8 @@ export type Round = {
   index: number;
   startedAt: number;
   beats: Beat[];
+  /** Game-clock seconds from `startedAt` to this round's last beat -- what the scheduler waits before the next round. */
+  duration: number;
 };
 
 export type RoundResolution = {
@@ -102,6 +104,8 @@ export type RoundResolution = {
   ballsGained: number;
   heroDefeated: boolean;
   waveCleared: boolean;
+  /** Game-clock seconds this round's beats span -- see `Round.duration`. */
+  duration: number;
 };
 
 function nearestLiving(enemies: readonly CombatEnemy[]): CombatEnemy | undefined {
@@ -111,12 +115,22 @@ function nearestLiving(enemies: readonly CombatEnemy[]): CombatEnemy | undefined
 }
 
 /**
- * One round: the hero takes its turn (one or more shots, plus any chained
- * extra turns), then every surviving enemy takes its turn in visual
- * left-to-right order -- a melee enemy closes the distance a bit more if it
- * hasn't arrived (`meleeStepX`), or strikes back once it has, unless it
+ * One round: the hero takes its turn (a volley against `mods.arrows`
+ * targets, plus any chained extra turns), then every surviving enemy takes
+ * its turn in visual left-to-right order -- a melee enemy closes the
+ * distance a bit more if it hasn't arrived (`meleeStepX`), or strikes back
+ * (once, or `spec.attacksPerTurn` times for the boss) once it has, unless it
  * whiffs (`mods.enemyMissChance`). Enemies are skipped entirely once the
  * hero's been felled.
+ *
+ * Beats within the hero's own turn (shots, the lifesteal heal) are spaced a
+ * full `Timing.beatStagger` apart, same as the gap into the enemies' turn
+ * that follows -- but beats *within* the enemies' turn (one enemy's move or
+ * hit to the next, or one boss hit to the next) use the tighter
+ * `Timing.enemyVolleyStagger`, since a full wave's enemy count would
+ * otherwise make a round drag (see the balance plan). `duration` on the
+ * result is the actual elapsed time this produced, so the scheduler doesn't
+ * have to re-derive it from the beat count.
  */
 export function resolveRound(
   hero: CombatHero,
@@ -128,23 +142,48 @@ export function resolveRound(
   const beats: Beat[] = [];
   const nextEnemies = enemies.map((enemy) => ({ ...enemy }));
   let ballsGained = 0;
-  let beatCount = 0;
-  const beatStart = () => startedAt + beatCount++ * Timing.beatStagger;
+  let cursor = 0;
+  // Hero-phase beats (shots, extra-turn notices, lifesteal) each claim a
+  // full `beatStagger` slot. `peek` reads the next slot's start time without
+  // claiming it -- how a notice beat rides the same slot as the volley that
+  // follows it, instead of stretching the round.
+  const peekHeroStart = () => startedAt + cursor;
+  const heroBeatStart = () => {
+    const t = peekHeroStart();
+    cursor += Timing.beatStagger;
+    return t;
+  };
+  // The enemies' turn starts with one full `beatStagger` gap from the hero's
+  // last beat (so the last shot's animation clears), then every subsequent
+  // beat inside the turn is a tighter `enemyVolleyStagger` apart.
+  let enemyPhaseStarted = false;
+  const enemyBeatStart = () => {
+    const gap = enemyPhaseStarted ? Timing.enemyVolleyStagger : Timing.beatStagger;
+    enemyPhaseStarted = true;
+    const t = startedAt + cursor;
+    cursor += gap;
+    return t;
+  };
 
-  // --- hero's turn: `mods.arrows` shots, then chained extra turns ---
+  // --- hero's turn: a volley against up to `mods.arrows` distinct targets, then chained extra turns ---
   let heroDamageDealt = 0;
   const heroVolley = () => {
-    for (let shot = 0; shot < Math.max(1, mods.arrows); shot += 1) {
-      const target = nearestLiving(nextEnemies);
-      if (!target) return;
+    const targets = nextEnemies
+      .filter((e) => e.alive)
+      .sort((a, b) => a.standX - b.standX)
+      .slice(0, Math.max(1, mods.arrows));
 
+    targets.forEach((target, index) => {
       const crit = rng() < mods.critChance;
       const base = mitigatedDamage(hero.attack, target.spec.armor);
-      const damage = crit ? Math.round(base * mods.critMult) : base;
+      // Only the nearest target takes full damage -- every target `arrows`
+      // adds beyond it is a secondary hit at reduced damage (see `ARROW_SPLASH_MULT`).
+      const scaled = index === 0 ? base : Math.round(base * ARROW_SPLASH_MULT);
+      const damage = crit ? Math.round(scaled * mods.critMult) : scaled;
       target.health = Math.max(0, target.health - damage);
       heroDamageDealt += damage;
       const lethal = target.health <= 0;
-      const startAt = beatStart();
+      const startAt = heroBeatStart();
       if (lethal) {
         target.alive = false;
         target.diedAt = startAt;
@@ -161,7 +200,7 @@ export function resolveRound(
         targetX: target.standX,
         startAt,
       });
-    }
+    });
   };
 
   heroVolley();
@@ -171,12 +210,7 @@ export function resolveRound(
     // Caption pops at the same instant the hero fires again -- it rides the
     // slot the next volley's first beat will take, so it doesn't stretch the
     // round's timeline.
-    beats.push({
-      kind: 'notice',
-      text: 'EXTRA TURN',
-      targetX: HERO_POS.x,
-      startAt: startedAt + beatCount * Timing.beatStagger,
-    });
+    beats.push({ kind: 'notice', text: 'EXTRA TURN', targetX: HERO_POS.x, startAt: peekHeroStart() });
     heroVolley();
   }
 
@@ -192,7 +226,7 @@ export function resolveRound(
         amount,
         targetHealthAfter: heroHealth,
         targetX: HERO_POS.x,
-        startAt: beatStart(),
+        startAt: heroBeatStart(),
       });
     }
   }
@@ -207,31 +241,46 @@ export function resolveRound(
       const fromX = enemy.standX;
       enemy.steps += 1;
       enemy.standX = meleeStepX(enemy.slotX, enemy.slotIndex, enemy.steps);
-      beats.push({ kind: 'move', actorId: enemy.id, fromX, toX: enemy.standX, startAt: beatStart() });
+      beats.push({ kind: 'move', actorId: enemy.id, fromX, toX: enemy.standX, startAt: enemyBeatStart() });
       continue;
     }
 
-    const missed = rng() < mods.enemyMissChance;
-    const damage = missed ? 0 : mitigatedDamage(enemy.spec.attack, hero.armor);
-    heroHealth = Math.max(0, heroHealth - damage);
-    const lethal = heroHealth <= 0;
-    if (lethal) heroDefeated = true;
-    beats.push({
-      kind: 'attack',
-      attackerId: enemy.id,
-      targetId: 'hero',
-      damage,
-      targetHealthAfter: heroHealth,
-      lethal,
-      missed,
-      targetX: HERO_POS.x,
-      startAt: beatStart(),
-    });
+    for (let hit = 0; hit < enemy.spec.attacksPerTurn && !heroDefeated; hit += 1) {
+      const missed = rng() < mods.enemyMissChance;
+      let damage = 0;
+      if (!missed) {
+        const mitigated = mitigatedDamage(enemy.spec.attack, hero.armor);
+        damage = Math.max(1, Math.round(mitigated * (1 - mods.damageReduction)));
+      }
+      heroHealth = Math.max(0, heroHealth - damage);
+      const lethal = heroHealth <= 0;
+      if (lethal) heroDefeated = true;
+      beats.push({
+        kind: 'attack',
+        attackerId: enemy.id,
+        targetId: 'hero',
+        damage,
+        targetHealthAfter: heroHealth,
+        lethal,
+        missed,
+        targetX: HERO_POS.x,
+        startAt: enemyBeatStart(),
+      });
+    }
   }
 
   const waveCleared = !heroDefeated && nextEnemies.every((enemy) => !enemy.alive);
+  const duration = Math.max(cursor, Timing.beatStagger);
 
-  return { beats, heroHealthAfter: heroHealth, enemiesAfter: nextEnemies, ballsGained, heroDefeated, waveCleared };
+  return {
+    beats,
+    heroHealthAfter: heroHealth,
+    enemiesAfter: nextEnemies,
+    ballsGained,
+    heroDefeated,
+    waveCleared,
+    duration,
+  };
 }
 
 /**
@@ -274,5 +323,5 @@ export function resolveBomb(
   }
 
   const waveCleared = nextEnemies.every((enemy) => !enemy.alive);
-  return { beats, heroHealthAfter: 0, enemiesAfter: nextEnemies, ballsGained, heroDefeated: false, waveCleared };
+  return { beats, heroHealthAfter: 0, enemiesAfter: nextEnemies, ballsGained, heroDefeated: false, waveCleared, duration: 0 };
 }

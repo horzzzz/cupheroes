@@ -47,18 +47,14 @@ export function useBattleScheduler(clock: GameClock) {
         after.phase === 'enemies-in'
           ? gameTime + Timing.enemyEnterDelay + Math.max(0, after.enemies.length - 1) * Timing.enemyEnterStagger + Timing.enemyEnter
           : after.phase === 'active'
-            ? // One `beatStagger` per beat the round just produced (hero's hit plus
-              // one per living enemy), so the next round's first beat starts exactly
-              // one more stagger after the last -- same gap as between any two beats
-              // *within* a round. A fixed pause here (independent of pack size)
-              // used to run short for a full 3-enemy pack, so the next round's hero
-              // beat started while the previous round's last beat was still
-              // mid-animation -- an attack (or an enemy's approach step) would get
-              // cut off and jump to its resting spot instead of finishing the tween.
-              // 'notice' beats (e.g. "EXTRA TURN") ride an existing beat's slot
-            // and don't extend the timeline -- don't let them pad the gap.
-            gameTime +
-              Math.max(1, after.round?.beats.filter((b) => b.kind !== 'notice').length ?? 1) * Timing.beatStagger
+            ? // The round the store just resolved reports exactly how long its
+              // beats span (`resolveRound`'s `duration`, in `combat.ts`) -- hero
+              // beats and enemy beats no longer share one fixed stagger, so the
+              // next round's first beat starts precisely one round-duration after
+              // this one instead of an approximation from the beat count. A short
+              // gap here would cut an attack (or an enemy's approach step) off
+              // mid-tween instead of letting it finish.
+              gameTime + Math.max(Timing.beatStagger, after.round?.duration ?? Timing.beatStagger)
             : after.phase === 'clear'
               ? gameTime + Timing.packClear
               : after.phase === 'advancing'
