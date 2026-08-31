@@ -58,7 +58,7 @@ export async function initAudio(): Promise<void> {
     });
 
     wheelPlayer = createAudioPlayer(WHEEL_SPIN_SOURCE);
-    wheelPlayer.loop = true;
+    wheelPlayer.loop = false;
     wheelPlayer.volume = sfxVolume;
 
     musicPlayer = createAudioPlayer(MUSIC_THEME_SOURCE);
@@ -112,7 +112,9 @@ export function startWheelLoop(): void {
       clearInterval(wheelFadeHandle);
       wheelFadeHandle = null;
     }
-    wheelPlayer.loop = true;
+    // One-shot, not a loop: `wheel-spin.m4a` (~2.5s) is shorter than a spin
+    // (~4.2s), so looping it replayed the rattle a second time mid-spin.
+    wheelPlayer.loop = false;
     wheelPlayer.volume = sfxVolume;
     wheelPlayer.seekTo(0);
     wheelPlayer.play();
