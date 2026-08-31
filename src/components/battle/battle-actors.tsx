@@ -106,6 +106,7 @@ export function BattleActors({ clock, sprites }: BattleActorsProps) {
   const enemies = useBattleStore((s) => s.enemies);
   const round = useBattleStore((s) => s.round);
   const enteredAt = useBattleStore((s) => s.enteredAt);
+  const heroDiedAt = useBattleStore((s) => s.heroDiedAt);
 
   return (
     <>
@@ -121,6 +122,7 @@ export function BattleActors({ clock, sprites }: BattleActorsProps) {
         bobPhase={0}
         walking={phase === 'advancing'}
         runIn={{ fromX: HERO_OFFSCREEN_X, startAt: 0, duration: Timing.heroEnter }}
+        deadAt={heroDiedAt}
       />
       {enemies.map((enemy, i) => (
         <SingleActor

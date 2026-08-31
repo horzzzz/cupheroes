@@ -96,6 +96,21 @@ export const Timing = {
   damageNumber: 0.7,
   /** Toss duration for a ball flying from a dead enemy to the HUD counter. */
   ballFlight: 0.55,
+  /** How long a ball takes to drop to the ground from a dead enemy, before it rests and flies to the HUD. */
+  ballFall: 0.35,
+  /** How long a dropped ball sits on the ground before its flight to the HUD begins. */
+  ballRest: 0.35,
+  /** How long the wind-streak layer takes to ramp to full intensity once the hero starts moving. */
+  windRamp: 0.3,
+  /** Rise-and-fade duration for a death's smoke puff. */
+  deathSmoke: 0.7,
+  /** Rise-and-fade duration for the skull that flies out of a death's smoke. */
+  deathSkull: 0.9,
+  /** Flight duration for a ranged actor's projectile from muzzle to target -- `AttackBeat.travel`
+   * for every ranged hit; 0 (instant) for melee. */
+  projectileTravel: 0.32,
+  /** Real-time pause after the hero's own death animation finishes before the defeat overlay appears. */
+  defeatHold: 0.35,
 } as const;
 
 export type EnemyRange = 'melee' | 'ranged';

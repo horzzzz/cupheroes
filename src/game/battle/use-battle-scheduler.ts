@@ -38,6 +38,9 @@ export function useBattleScheduler(clock: GameClock) {
         case 'advancing':
           store.startNextPack(gameTime);
           break;
+        case 'dying':
+          store.finishDefeat();
+          break;
         default:
           break; // victory / defeat: nothing to schedule until the player acts
       }
@@ -59,7 +62,14 @@ export function useBattleScheduler(clock: GameClock) {
               ? gameTime + Timing.packClear
               : after.phase === 'advancing'
                 ? gameTime + Timing.packAdvance
-                : Infinity;
+                : after.phase === 'dying'
+                  ? // Waits out the hero's own death animation (`deathFade`, same as
+                    // an enemy's) plus a short real hold, timed off the killing
+                    // blow's own impact -- not off `gameTime`, which is this
+                    // round's *start*, earlier than the beat that actually killed
+                    // the hero.
+                    (after.heroDiedAt ?? gameTime) + Timing.deathFade + Timing.defeatHold
+                  : Infinity;
     },
     [nextEventAt],
   );
@@ -95,7 +105,8 @@ export function useBattleScheduler(clock: GameClock) {
           s.phase === 'enemies-in' ||
           s.phase === 'active' ||
           s.phase === 'clear' ||
-          s.phase === 'advancing';
+          s.phase === 'advancing' ||
+          s.phase === 'dying';
         if (driven && nextEventAt.value === Infinity) nextEventAt.value = 0;
       }),
     [nextEventAt],

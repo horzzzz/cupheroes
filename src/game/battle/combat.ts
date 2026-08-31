@@ -53,9 +53,25 @@ export type AttackBeat = {
   crit?: boolean;
   /** Target's on-screen x when this beat starts, for damage numbers/ball-drop to land on. */
   targetX: number;
-  /** Absolute game-clock time (seconds) this beat begins animating. */
+  /** Attacker's on-screen x when this beat starts -- the projectile's muzzle point (see `projectiles.tsx`).
+   * Undefined for a beat with no attacker actor to launch from (e.g. `resolveBomb`'s AoE). */
+  attackerX?: number;
+  /** Projectile flight time in seconds, 0 (or omitted) for an instant/melee hit. The beat's *impact* --
+   * when damage actually lands, the target flashes, and a lethal hit's death/loot beats begin -- is
+   * `startAt + travel`, not `startAt` (that's when the attacker's own swing/shot animation starts). See
+   * `impactAt`. */
+  travel?: number;
+  /** Absolute game-clock time (seconds) this beat begins animating (the attacker's windup/shot). */
   startAt: number;
 };
+
+/** When an attack beat's damage actually lands -- `startAt` plus its projectile's flight time, if any.
+ * Everything about the *target* (hit-flash, health tween, death fade, loot) keys off this, not `startAt`,
+ * which is only when the *attacker* starts its own swing/shot animation. */
+export function impactAt(beat: Pick<AttackBeat, 'startAt' | 'travel'>): number {
+  'worklet';
+  return beat.startAt + (beat.travel ?? 0);
+}
 
 export type MoveBeat = {
   kind: 'move';
@@ -184,9 +200,11 @@ export function resolveRound(
       heroDamageDealt += damage;
       const lethal = target.health <= 0;
       const startAt = heroBeatStart();
+      // The hero is always a ranged archer -- every shot is a travelling arrow.
+      const travel = Timing.projectileTravel;
       if (lethal) {
         target.alive = false;
-        target.diedAt = startAt;
+        target.diedAt = startAt + travel;
         ballsGained += target.spec.ballDrop + mods.bonusBallsPerKill;
       }
       beats.push({
@@ -198,6 +216,8 @@ export function resolveRound(
         lethal,
         crit,
         targetX: target.standX,
+        attackerX: HERO_POS.x,
+        travel,
         startAt,
       });
     });
@@ -255,6 +275,9 @@ export function resolveRound(
       heroHealth = Math.max(0, heroHealth - damage);
       const lethal = heroHealth <= 0;
       if (lethal) heroDefeated = true;
+      // Only a ranged enemy's hit travels as a projectile -- a melee enemy has
+      // already closed the distance (`meleeHasArrived`) and swings on contact.
+      const travel = enemy.spec.range === 'ranged' ? Timing.projectileTravel : 0;
       beats.push({
         kind: 'attack',
         attackerId: enemy.id,
@@ -264,6 +287,8 @@ export function resolveRound(
         lethal,
         missed,
         targetX: HERO_POS.x,
+        attackerX: enemy.standX,
+        travel,
         startAt: enemyBeatStart(),
       });
     }

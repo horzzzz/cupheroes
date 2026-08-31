@@ -14,7 +14,7 @@ import { shufflePlinkoOrder } from '@/constants/plinko-layouts';
 import { SKILLS, skillValue } from '@/constants/skills';
 import { applyUpgrades } from '@/constants/upgrades';
 import type { Reward } from '@/constants/economy';
-import { resolveBomb, resolveRound, type Beat, type CombatEnemy, type Round } from '@/game/battle/combat';
+import { impactAt, resolveBomb, resolveRound, type Beat, type CombatEnemy, type Round } from '@/game/battle/combat';
 import { runReward } from '@/game/battle/rewards';
 import { aggregateSkills, rollOffers, type OwnedSkills, type SkillOffer } from '@/game/battle/skills';
 import { levelFromXp } from '@/game/economy/level';
@@ -25,8 +25,15 @@ import { useEconomyStore } from '@/game/economy/store';
  * right) -> `active` (rounds resolve) -> `clear` (pack's dead, brief pause)
  * -> `advancing` (hero walks forward, background pans) -> back to
  * `enemies-in` for the wave's second half or the next wave's first, or
- * `victory` once the last wave's last half falls. `defeat` can interrupt
- * `active` at any round.
+ * `victory` once the last wave's last half falls. `active` can interrupt
+ * into `dying` at any round instead.
+ *
+ * `dying` plays the hero's own death animation (the same fade/drop/smoke/
+ * skull every enemy gets -- see `battle-actors.tsx`'s `heroDiedAt` and
+ * `components/battle/vfx/death-vfx.tsx`) with the clock still running --
+ * unlike every other terminal phase, `battle.tsx` deliberately does *not*
+ * pause the clock here. `finishDefeat` moves on to `defeat` (which does
+ * pause) once that animation, plus a short real hold, has played out.
  *
  * `plinko` is the between-waves interlude: once a new wave's first pack has
  * run in (`finishEntering` with `half === 0 && wave > 1`), combat holds here
@@ -43,6 +50,7 @@ export type BattlePhase =
   | 'plinko'
   | 'draft'
   | 'victory'
+  | 'dying'
   | 'defeat';
 
 /** Ball price of a manual re-roll on the draft screen (Figma copy says "REFRESH 50", lowered per the balance plan to ~2/3 of a typical wave's ball drop now that skill prices are higher). */
@@ -87,6 +95,10 @@ type BattleState = {
   wavesCompleted: number;
   /** Coins/gems/xp granted for the run that just ended -- null mid-run. Read by the victory/defeat overlays. */
   lastReward: Reward | null;
+  /** Game-clock time the hero's killing blow landed, set only while `phase === 'dying'` -- the same
+   * shape as `CombatEnemy.diedAt`, fed to `BattleActors` so the hero fades out with the identical
+   * death animation an enemy gets. Undefined outside `dying`/`defeat`. */
+  heroDiedAt?: number;
 
   /** Ends the intro run and spawns wave 1's first pack. No-op outside 'intro'. */
   beginFirstWave: (gameTime: number) => void;
@@ -94,6 +106,8 @@ type BattleState = {
   finishEntering: (gameTime: number) => void;
   /** Resolves one round of combat. No-op outside the 'active' phase. */
   advanceRound: (gameTime: number) => void;
+  /** Moves the hero on from its own death animation to the `defeat` overlay. No-op outside 'dying'. */
+  finishDefeat: () => void;
   /** Moves on from the pack-clear pause to the hero's walk-forward. No-op outside 'clear'. */
   startAdvance: (gameTime: number) => void;
   /** Spawns the wave's other half, the next wave's first pack, or ends the run in victory. No-op outside 'advancing'. */
@@ -187,6 +201,7 @@ function freshState() {
     chapter,
     wavesCompleted: 0,
     lastReward: null as Reward | null,
+    heroDiedAt: undefined as number | undefined,
   };
 }
 
@@ -229,16 +244,31 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       beats: resolution.beats,
       duration: resolution.duration,
     };
-    const nextPhase: BattlePhase = resolution.heroDefeated ? 'defeat' : resolution.waveCleared ? 'clear' : 'active';
+    // 'defeat' itself waits on 'dying' -- see `finishDefeat` -- so the hero's
+    // own death animation gets to play before the overlay appears.
+    const nextPhase: BattlePhase = resolution.heroDefeated ? 'dying' : resolution.waveCleared ? 'clear' : 'active';
 
-    // Defeat pays out for whatever waves were fully cleared before this one --
+    // Reward pays out for whatever waves were fully cleared before this one --
     // the wave in progress never counts, same as the old summary screen's
-    // "waves completed" readout.
+    // "waves completed" readout. Granted the instant defeat is decided (not
+    // once 'dying' finishes) so nothing about the wallet depends on how long
+    // the death animation takes.
     let lastReward = state.lastReward;
-    if (nextPhase === 'defeat') {
+    if (nextPhase === 'dying') {
       lastReward = runReward(state.wavesCompleted, false, state.heroLevel);
       useEconomyStore.getState().grant(lastReward);
     }
+
+    // The killing blow's own impact time -- the last lethal hit on the hero,
+    // consistent with how `combat.ts` sets an enemy's `diedAt`.
+    const heroDiedAt =
+      nextPhase === 'dying'
+        ? resolution.beats.reduce<number | undefined>((latest, beat) => {
+            if (beat.kind !== 'attack' || beat.targetId !== 'hero' || !beat.lethal) return latest;
+            const at = impactAt(beat);
+            return latest === undefined || at > latest ? at : latest;
+          }, undefined)
+        : undefined;
 
     set({
       phase: nextPhase,
@@ -247,7 +277,14 @@ export const useBattleStore = create<BattleState>((set, get) => ({
       wavePot: state.wavePot + resolution.ballsGained,
       round,
       lastReward,
+      heroDiedAt,
     });
+  },
+
+  finishDefeat: () => {
+    const state = get();
+    if (state.phase !== 'dying') return;
+    set({ phase: 'defeat' });
   },
 
   startAdvance: () => {
@@ -377,7 +414,10 @@ export const useBattleStore = create<BattleState>((set, get) => ({
   revive: () => {
     const state = get();
     if (state.phase !== 'defeat') return;
-    set({ phase: 'active', heroHealth: state.heroMaxHealth, round: null });
+    // Clears `heroDiedAt` too -- otherwise `computeActorLayout` would still
+    // see a (long-expired) death timestamp and render the hero permanently
+    // faded out post-revive.
+    set({ phase: 'active', heroHealth: state.heroMaxHealth, round: null, heroDiedAt: undefined });
   },
 
   reset: () => set({ ...freshState() }),

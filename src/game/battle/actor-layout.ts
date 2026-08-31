@@ -1,4 +1,4 @@
-import type { AttackBeat, HealBeat, MoveBeat } from '@/game/battle/combat';
+import { impactAt, type AttackBeat, type HealBeat, type MoveBeat } from '@/game/battle/combat';
 import { Timing } from '@/constants/battle';
 import { easeOutCubic, isActiveWindow, lerp, pingPong, timelineProgress } from '@/game/easing';
 
@@ -53,13 +53,21 @@ export type ActorLayout = {
   pose: 'idle' | 'attack' | 'run';
 };
 
-/** The beat currently animating (or the most recent one still within its `duration` window), else undefined. */
-function currentBeat(beats: readonly AttackBeat[] | undefined, now: number, duration: number): AttackBeat | undefined {
+/** The beat currently animating (or the most recent one still within its `duration` window), else
+ * undefined -- windowed off `at(beat)` so the same scan can key an attacker's own beats by `startAt`
+ * (its swing/shot windup) or a target's incoming beats by `impactAt` (when the hit actually lands). */
+function currentBeat(
+  beats: readonly AttackBeat[] | undefined,
+  now: number,
+  duration: number,
+  at: (beat: AttackBeat) => number,
+): AttackBeat | undefined {
   'worklet';
   if (!beats) return undefined;
   let active: AttackBeat | undefined;
   for (const beat of beats) {
-    if (beat.startAt <= now && now < beat.startAt + duration) active = beat;
+    const start = at(beat);
+    if (start <= now && now < start + duration) active = beat;
   }
   return active;
 }
@@ -67,8 +75,8 @@ function currentBeat(beats: readonly AttackBeat[] | undefined, now: number, dura
 export function computeActorLayout(p: ActorLayoutParams): ActorLayout {
   'worklet';
 
-  const attackBeat = currentBeat(p.attackBeats, p.now, Timing.attackDuration);
-  const hitBeat = currentBeat(p.hitBeats, p.now, Timing.hitFlash);
+  const attackBeat = currentBeat(p.attackBeats, p.now, Timing.attackDuration, (b) => b.startAt);
+  const hitBeat = currentBeat(p.hitBeats, p.now, Timing.hitFlash, impactAt);
 
   if (p.runIn && p.now < p.runIn.startAt + p.runIn.duration) {
     const t = easeOutCubic(timelineProgress(p.now, p.runIn.startAt, p.runIn.duration));
@@ -122,8 +130,8 @@ export function computeActorLayout(p: ActorLayoutParams): ActorLayout {
     dx += pingPong(t) * LUNGE_DISTANCE * p.facing;
   }
 
-  if (hitBeat && isActiveWindow(p.now, hitBeat.startAt, Timing.hitFlash)) {
-    const t = timelineProgress(p.now, hitBeat.startAt, Timing.hitFlash);
+  if (hitBeat && isActiveWindow(p.now, impactAt(hitBeat), Timing.hitFlash)) {
+    const t = timelineProgress(p.now, impactAt(hitBeat), Timing.hitFlash);
     dx += Math.sin(t * Math.PI * 3) * HIT_SHAKE_DISTANCE * (1 - t) * -p.facing;
   }
 
@@ -194,7 +202,9 @@ export function healthAt(
   'worklet';
   let health = fallbackHealth;
   for (const beat of events) {
-    const t = timelineProgress(now, beat.startAt, Timing.healthTween);
+    // A heal is instant (no travel); a hit's health change lands with its projectile's impact.
+    const at = beat.kind === 'heal' ? beat.startAt : impactAt(beat);
+    const t = timelineProgress(now, at, Timing.healthTween);
     const before =
       beat.kind === 'heal' ? beat.targetHealthAfter - beat.amount : beat.targetHealthAfter + beat.damage;
     health = lerp(before, beat.targetHealthAfter, t);

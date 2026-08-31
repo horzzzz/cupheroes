@@ -19,13 +19,15 @@ export type ChapterTheme = {
   /** The flat "JOURNEY IN PROGRESS" panel below the battle canvas -- reads as a
    * continuation of the location's ground. */
   groundColor: string;
+  /** Bolt colour for this location's ranged enemies' projectiles (see `components/battle/vfx/projectiles.tsx`). */
+  projectileColor: string;
 };
 
 export const CHAPTERS: readonly ChapterTheme[] = [
-  { name: 'Whispering Groves', wallColor: '#8DBD1B', groundColor: '#8dbd1b' },
-  { name: 'Dusty Ridges', wallColor: '#E0A32E', groundColor: '#C0781F' },
-  { name: 'Frostbound Peaks', wallColor: '#6FC6EC', groundColor: '#5E93B8' },
-  { name: 'Ember Hollows', wallColor: '#E0522B', groundColor: '#5A2A2E' },
+  { name: 'Whispering Groves', wallColor: '#8DBD1B', groundColor: '#8dbd1b', projectileColor: '#8DBD1B' },
+  { name: 'Dusty Ridges', wallColor: '#E0A32E', groundColor: '#C0781F', projectileColor: '#E0A32E' },
+  { name: 'Frostbound Peaks', wallColor: '#6FC6EC', groundColor: '#5E93B8', projectileColor: '#8FE0F5' },
+  { name: 'Ember Hollows', wallColor: '#E0522B', groundColor: '#5A2A2E', projectileColor: '#FF7A3D' },
 ] as const;
 
 export const CHAPTER_COUNT = CHAPTERS.length;

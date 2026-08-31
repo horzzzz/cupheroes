@@ -5,6 +5,7 @@ import Animated, { useAnimatedStyle, useSharedValue, type SharedValue } from 're
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Timing } from '@/constants/battle';
+import { impactAt } from '@/game/battle/combat';
 import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 import { clamp01, timelineProgress } from '@/game/easing';
@@ -62,8 +63,12 @@ export function DamageNumbers({ clock, scale }: DamageNumbersProps) {
       let variant: NumberVariant;
       let x: number;
       let y = 290;
+      // A number pops when the hit actually lands (`impactAt`, after any
+      // projectile flight), not when the attacker starts its swing/shot.
+      let startAt: number;
       if (beat.kind === 'attack') {
         x = beat.targetX + 45;
+        startAt = impactAt(beat);
         if (beat.missed) {
           text = 'MISS';
           variant = 'miss';
@@ -73,12 +78,14 @@ export function DamageNumbers({ clock, scale }: DamageNumbersProps) {
         }
       } else if (beat.kind === 'heal') {
         x = beat.targetX + 45;
+        startAt = beat.startAt;
         text = `+${beat.amount}`;
         variant = 'heal';
       } else if (beat.kind === 'notice') {
         // Floats higher, right over the actor's head rather than beside it.
         x = beat.targetX + 20;
         y = 268;
+        startAt = beat.startAt;
         text = beat.text;
         variant = 'notice';
       } else {
@@ -88,7 +95,7 @@ export function DamageNumbers({ clock, scale }: DamageNumbersProps) {
       const slotIndex = cursor.current % POOL_SIZE;
       cursor.current += 1;
       nextSlots[slotIndex] = {
-        startAt: beat.startAt,
+        startAt,
         x: variant === 'notice' ? x : x + (beatIndex % 2 === 0 ? -6 : 6),
         y,
       };

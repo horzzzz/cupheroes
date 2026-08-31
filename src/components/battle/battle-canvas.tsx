@@ -5,8 +5,12 @@ import { StyleSheet } from 'react-native';
 import { BallDrop } from '@/components/battle/ball-drop';
 import { BattleActors } from '@/components/battle/battle-actors';
 import { BattleBackground } from '@/components/battle/battle-background';
+import { DeathVfxLayer } from '@/components/battle/vfx/death-vfx';
+import { Projectiles } from '@/components/battle/vfx/projectiles';
+import { WindStreaks } from '@/components/battle/vfx/wind-streaks';
 import { BattleFrame } from '@/constants/battle';
 import { chapterTheme } from '@/constants/chapters';
+import { useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
 import { isSpriteSetReady, useBattleSprites } from '@/game/sprites';
 
@@ -27,6 +31,8 @@ type BattleCanvasProps = {
 export function BattleCanvas({ clock, scale, chapter, onReady }: BattleCanvasProps) {
   const sprites = useBattleSprites(chapter);
   const ready = isSpriteSetReady(sprites);
+  const walking = useBattleStore((s) => s.phase === 'advancing');
+  const theme = chapterTheme(chapter);
 
   useEffect(() => {
     onReady?.(ready);
@@ -42,8 +48,11 @@ export function BattleCanvas({ clock, scale, chapter, onReady }: BattleCanvasPro
           is the one place device scale is applied, so Skia rasterizes
           straight to the target resolution instead of stretching a bitmap. */}
       <Group transform={[{ scale }]}>
-        <BattleBackground sprites={sprites} placeholderColor={chapterTheme(chapter).groundColor} />
+        <BattleBackground sprites={sprites} placeholderColor={theme.groundColor} />
+        <WindStreaks clock={clock} scale={scale} walking={walking} />
         {ready && <BattleActors clock={clock} sprites={sprites} />}
+        {ready && <DeathVfxLayer clock={clock} scale={scale} />}
+        {ready && <Projectiles clock={clock} enemyColor={theme.projectileColor} />}
         {ready && <BallDrop clock={clock} sprites={sprites} />}
       </Group>
     </Canvas>
