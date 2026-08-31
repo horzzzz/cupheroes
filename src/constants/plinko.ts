@@ -135,7 +135,11 @@ export const PLINKO_AIM_RANGE = { min: 40, max: 350 } as const;
  * board jams is somewhere above this and has to be found on a device.
  */
 export const PLINKO_TUNING = {
-  poolSize: 512,
+  /** Body slots. Never needs to exceed `liveCap` -- both the spawn drip and
+   * gate cloning refuse to allocate at the cap -- and every slot costs a
+   * transform-buffer callback per frame in `plinko-balls.tsx` whether it holds
+   * a live ball or not, so the headroom over `liveCap` is deliberately small. */
+  poolSize: 352,
   liveCap: 320,
   radius: 8,
 

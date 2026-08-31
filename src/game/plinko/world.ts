@@ -59,6 +59,16 @@ export type PlinkoWorld = {
   gridCount: NumArr;
   grid: NumArr;
 
+  // --- collision scratch, all rewritten every sub-step ---
+  /** Out-param for `collideCircleWall`: [nx, ny, pen]. One shared buffer instead
+   * of a result object per ball-vs-wall test (see `collision.ts`). */
+  hit: NumArr;
+  /** Per-wall `cos(a)` / `sin(a)` and squared broad-phase radius, primed once
+   * per sub-step by the solver -- indexed by position in `layout.walls`. */
+  wallCos: NumArr;
+  wallSin: NumArr;
+  wallBound: NumArr;
+
   // --- run state ---
   /** 1 while the solver should step, 0 when idle (nothing to simulate). */
   running: SharedValue<number>;
@@ -91,6 +101,9 @@ export type PlinkoWorld = {
   cfgLiveCap: SharedValue<number>;
   cfgBallBall: SharedValue<number>;
 };
+
+/** Ceiling on `layout.walls.length` -- sizes the per-wall scratch arrays. */
+export const PLINKO_MAX_WALLS = 64;
 
 const GRID_COLS = 20;
 const GRID_ROWS = 44;
@@ -126,6 +139,11 @@ export function usePlinkoWorld(): PlinkoWorld {
 
     gridCount: useSharedValue<number[]>(zeros(cells)),
     grid: useSharedValue<number[]>(zeros(cells * PLINKO_GRID.maxPerCell)),
+
+    hit: useSharedValue<number[]>(zeros(4)),
+    wallCos: useSharedValue<number[]>(zeros(PLINKO_MAX_WALLS)),
+    wallSin: useSharedValue<number[]>(zeros(PLINKO_MAX_WALLS)),
+    wallBound: useSharedValue<number[]>(zeros(PLINKO_MAX_WALLS)),
 
     running: useSharedValue<number>(0),
     stepAcc: useSharedValue<number>(0),

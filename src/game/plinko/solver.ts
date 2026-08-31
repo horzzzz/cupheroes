@@ -1,7 +1,7 @@
 import { PLINKO_CUPS, PLINKO_TUNING, PlinkoFrame } from '@/constants/plinko';
 import { allocBall } from '@/game/plinko/bodies';
-import { collideCircleWall, pointInRect, rand01 } from '@/game/plinko/collision';
-import { PLINKO_GRID, type PlinkoWorld } from '@/game/plinko/world';
+import { collideCircleWall, pointInRect } from '@/game/plinko/collision';
+import { PLINKO_GRID, PLINKO_MAX_WALLS, type PlinkoWorld } from '@/game/plinko/world';
 
 /**
  * The pachinko physics step. `stepPlinko` advances the world by exactly one
@@ -13,6 +13,13 @@ import { PLINKO_GRID, type PlinkoWorld } from '@/game/plinko/world';
  * `liveList[0..liveCount)`, so cost tracks the number of live balls, never
  * `poolSize`.
  *
+ * **Nothing in this file may allocate.** At a full board the inner loops run
+ * ~9k times per rendered frame, and every object created here is garbage the
+ * Hermes UI-thread collector has to chase -- which is what the stutter at high
+ * ball counts turned out to be. Hence the out-param on `collideCircleWall`,
+ * the inlined RNG, and the per-wall scratch arrays on the world. If a helper
+ * here needs to return more than one number, give it a scratch array.
+ *
  * Lifecycle within a step: integrate + resolve every live ball (a drained or
  * lost ball is flagged by `scl = 0`, not removed yet; gate clones are
  * appended past the snapshot so they wait for the next step), then one
@@ -20,11 +27,21 @@ import { PLINKO_GRID, type PlinkoWorld } from '@/game/plinko/world';
  * list, then ball-vs-ball runs on the survivors.
  */
 
+/**
+ * Deterministic xorshift32 in [0,1), advancing `world.rng`. Written out here
+ * rather than delegating to a helper that returns `{value, next}`: this runs
+ * thousands of times a second on the UI thread and the result object was pure
+ * GC churn (same reason `collideCircleWall` takes an out-param).
+ */
 export function nextRand(world: PlinkoWorld): number {
   'worklet';
-  const r = rand01(world.rng.value);
-  world.rng.value = r.next;
-  return r.value;
+  let x = world.rng.value | 0;
+  x ^= x << 13;
+  x ^= x >>> 17;
+  x ^= x << 5;
+  x = x | 0;
+  world.rng.value = x;
+  return (x >>> 0) / 4294967296;
 }
 
 /** Symmetric random in [-m, m]. */
@@ -73,6 +90,38 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
   const drag = 1 - PLINKO_TUNING.airDrag;
   const maxSpeed = PLINKO_TUNING.maxSpeed;
 
+  // --- prime the per-wall scratch ---------------------------------------
+  // Wall angles are static for the whole layout, so `cos`/`sin` are computed
+  // once per sub-step (a dozen calls) instead of once per ball-vs-wall test
+  // (thousands). `wallBound` is the squared radius of the circle that
+  // encloses the collider plus the ball -- outside it there cannot be a hit,
+  // which lets the inner loop reject most walls with two multiplies.
+  const hitOut = world.hit.value;
+  const wallCos = world.wallCos.value;
+  const wallSin = world.wallSin.value;
+  const wallBound = world.wallBound.value;
+  const wallCount = walls.length < PLINKO_MAX_WALLS ? walls.length : PLINKO_MAX_WALLS;
+  for (let w = 0; w < wallCount; w++) {
+    const wl = walls[w];
+    wallCos[w] = Math.cos(wl.a);
+    wallSin[w] = Math.sin(wl.a);
+    const bound = Math.sqrt(wl.hx * wl.hx + wl.hy * wl.hy) + radius;
+    wallBound[w] = bound * bound;
+  }
+
+  // Vertical span the gate bands can possibly latch in -- a ball outside it
+  // skips the whole gate loop (and just clears its mask, which is what the
+  // per-gate re-arm branch would have done anyway).
+  let gateLo = Infinity;
+  let gateHi = -Infinity;
+  for (let g = 0; g < gates.length; g++) {
+    const bandCy = (gates[g].y0 + gates[g].y1) * 0.5;
+    if (bandCy < gateLo) gateLo = bandCy;
+    if (bandCy > gateHi) gateHi = bandCy;
+  }
+  gateLo -= PLINKO_TUNING.gateRearmDist;
+  gateHi += PLINKO_TUNING.gateRearmDist;
+
   // --- drip new balls from the top cup ----------------------------------
   world.spawnAcc.value += dt;
   while (
@@ -117,25 +166,34 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
     x += ux * dt;
     y += uy * dt;
 
-    // Walls.
-    for (let w = 0; w < walls.length; w++) {
-      const hit = collideCircleWall(x, y, radius, walls[w]);
-      if (!hit.hit) continue;
+    // Walls. Broad-phase first: most balls are nowhere near most walls, and
+    // the bounding-circle reject is two multiplies against the exact test's
+    // rotate-clamp-normalise.
+    for (let w = 0; w < wallCount; w++) {
+      const wl = walls[w];
+      const bx = x - wl.cx;
+      const by = y - wl.cy;
+      if (bx * bx + by * by > wallBound[w]) continue;
+      if (!collideCircleWall(hitOut, x, y, radius, wl, wallCos[w], wallSin[w])) continue;
 
-      x += hit.nx * hit.pen;
-      y += hit.ny * hit.pen;
+      const hnx = hitOut[0];
+      const hny = hitOut[1];
+      const pen = hitOut[2];
 
-      const vn = ux * hit.nx + uy * hit.ny;
+      x += hnx * pen;
+      y += hny * pen;
+
+      const vn = ux * hnx + uy * hny;
       if (vn < 0) {
-        ux -= (1 + wallRestitution) * vn * hit.nx;
-        uy -= (1 + wallRestitution) * vn * hit.ny;
+        ux -= (1 + wallRestitution) * vn * hnx;
+        uy -= (1 + wallRestitution) * vn * hny;
         // Friction proportional to impact hardness: a ball sliding down a
         // steep funnel wall barely penetrates per sub-step (-vn tiny), so it
         // keeps its down-slope speed; a ball slamming in loses real energy.
         const fr = PLINKO_TUNING.wallFriction * Math.min(1, -vn * 0.005);
-        const dot = ux * hit.nx + uy * hit.ny;
-        const tx = ux - dot * hit.nx;
-        const ty = uy - dot * hit.ny;
+        const dot = ux * hnx + uy * hny;
+        const tx = ux - dot * hnx;
+        const ty = uy - dot * hny;
         ux -= tx * fr;
         uy -= ty * fr;
       }
@@ -145,34 +203,40 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
     // double-count while the ball is passing through (or wobbling near) the
     // band; it re-arms once the ball is well clear, so a ball bounced or
     // boosted back up through a gate it already used gets multiplied again.
-    for (let g = 0; g < gates.length; g++) {
-      const gate = gates[g];
-      const bandCy = (gate.y0 + gate.y1) * 0.5;
-      if (y < bandCy - PLINKO_TUNING.gateRearmDist || y > bandCy + PLINKO_TUNING.gateRearmDist) {
-        mask[i] &= ~gate.bit;
-        continue;
-      }
-      if (mask[i] & gate.bit) continue;
-      if (!pointInRect(x, y, gate.x0, gate.y0, gate.x1, gate.y1)) continue;
-
-      mask[i] |= gate.bit;
-      // Sound only -- see `use-plinko-sfx.ts`. Safe to write here because a
-      // gate latches once per ball; the wall loop above runs orders of
-      // magnitude more often and must stay free of side effects like this.
-      world.gateHits.value += 1;
-      for (let c = 1; c < gate.mult; c++) {
-        if (world.liveCount.value >= liveCap) {
-          world.overflow.value += 1;
+    // Most balls spend most of their life clear of every band, and for those
+    // the whole loop below collapses to one mask write.
+    if (y < gateLo || y > gateHi) {
+      mask[i] = 0;
+    } else {
+      for (let g = 0; g < gates.length; g++) {
+        const gate = gates[g];
+        const bandCy = (gate.y0 + gate.y1) * 0.5;
+        if (y < bandCy - PLINKO_TUNING.gateRearmDist || y > bandCy + PLINKO_TUNING.gateRearmDist) {
+          mask[i] &= ~gate.bit;
           continue;
         }
-        allocBall(
-          world,
-          x + jitter(world, PLINKO_TUNING.cloneJitterX),
-          y,
-          ux + jitter(world, PLINKO_TUNING.cloneJitterVx),
-          uy + Math.abs(jitter(world, PLINKO_TUNING.cloneJitterVy)),
-          mask[i],
-        );
+        if (mask[i] & gate.bit) continue;
+        if (!pointInRect(x, y, gate.x0, gate.y0, gate.x1, gate.y1)) continue;
+
+        mask[i] |= gate.bit;
+        // Sound only -- see `use-plinko-sfx.ts`. Safe to write here because a
+        // gate latches once per ball; the wall loop above runs orders of
+        // magnitude more often and must stay free of side effects like this.
+        world.gateHits.value += 1;
+        for (let c = 1; c < gate.mult; c++) {
+          if (world.liveCount.value >= liveCap) {
+            world.overflow.value += 1;
+            continue;
+          }
+          allocBall(
+            world,
+            x + jitter(world, PLINKO_TUNING.cloneJitterX),
+            y,
+            ux + jitter(world, PLINKO_TUNING.cloneJitterVx),
+            uy + Math.abs(jitter(world, PLINKO_TUNING.cloneJitterVy)),
+            mask[i],
+          );
+        }
       }
     }
 
@@ -268,53 +332,70 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
     }
 
     const diam = radius * 2;
+    const diam2 = diam * diam;
     for (let k = 0; k < wIdx; k++) {
       const i = live[k];
-      let cx = (px[i] / cell) | 0;
-      let cy = (py[i] / cell) | 0;
+      // Ball `i`'s own state is hoisted into locals for the whole neighbour
+      // sweep and written back once at the end -- it is read and written by
+      // every pair, and it is the same values each time. `j` still goes
+      // straight through the arrays, so the sequential relaxation resolves in
+      // exactly the order it did before.
+      let pix = px[i];
+      let piy = py[i];
+      let vix = vx[i];
+      let viy = vy[i];
+      // A ball still in its post-launch window plows through the crowd
+      // untouched -- otherwise the pile above the pad eats the kick.
+      const iLaunched = launchArr[i] > 0;
+
+      let cx = (pix / cell) | 0;
+      let cy = (piy / cell) | 0;
       if (cx < 0) cx = 0;
       else if (cx >= cols) cx = cols - 1;
       if (cy < 0) cy = 0;
       else if (cy >= rows) cy = rows - 1;
 
-      for (let gy = cy - 1; gy <= cy + 1; gy++) {
-        if (gy < 0 || gy >= rows) continue;
-        for (let gx = cx - 1; gx <= cx + 1; gx++) {
-          if (gx < 0 || gx >= cols) continue;
+      const gy1 = cy + 1 < rows ? cy + 1 : rows - 1;
+      const gx1 = cx + 1 < cols ? cx + 1 : cols - 1;
+      for (let gy = cy > 0 ? cy - 1 : 0; gy <= gy1; gy++) {
+        for (let gx = cx > 0 ? cx - 1 : 0; gx <= gx1; gx++) {
           const c = gx + gy * cols;
           const count = gc[c];
           for (let s = 0; s < count; s++) {
             const j = grid[c * per + s];
             if (j <= i) continue;
-            // A ball still in its post-launch window plows through the crowd
-            // untouched -- otherwise the pile above the pad eats the kick.
-            if (launchArr[i] > 0 || launchArr[j] > 0) continue;
+            if (iLaunched || launchArr[j] > 0) continue;
 
-            const dx = px[j] - px[i];
-            const dy = py[j] - py[i];
+            const dx = px[j] - pix;
+            const dy = py[j] - piy;
             const d2 = dx * dx + dy * dy;
-            if (d2 >= diam * diam || d2 < 1e-6) continue;
+            if (d2 >= diam2 || d2 < 1e-6) continue;
 
             const d = Math.sqrt(d2);
             const nrmX = dx / d;
             const nrmY = dy / d;
             const push = (diam - d) * 0.5;
-            px[i] -= nrmX * push;
-            py[i] -= nrmY * push;
+            pix -= nrmX * push;
+            piy -= nrmY * push;
             px[j] += nrmX * push;
             py[j] += nrmY * push;
 
-            const rvn = (vx[j] - vx[i]) * nrmX + (vy[j] - vy[i]) * nrmY;
+            const rvn = (vx[j] - vix) * nrmX + (vy[j] - viy) * nrmY;
             if (rvn < 0) {
               const imp = (1 + PLINKO_TUNING.ballRestitution) * rvn * 0.5;
-              vx[i] += imp * nrmX;
-              vy[i] += imp * nrmY;
+              vix += imp * nrmX;
+              viy += imp * nrmY;
               vx[j] -= imp * nrmX;
               vy[j] -= imp * nrmY;
             }
           }
         }
       }
+
+      px[i] = pix;
+      py[i] = piy;
+      vx[i] = vix;
+      vy[i] = viy;
     }
   }
 }

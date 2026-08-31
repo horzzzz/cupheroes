@@ -1,4 +1,5 @@
 import { Group, Image, Rect, RoundedRect, rect, rrect, type SkImage } from '@shopify/react-native-skia';
+import { memo } from 'react';
 import { useDerivedValue } from 'react-native-reanimated';
 
 import { PLINKO_COLORS, type PlinkoLayout } from '@/constants/plinko';
@@ -36,7 +37,11 @@ import type { PlinkoWorld } from '@/game/plinko/world';
  */
 /** Native aspect ratio of `pad-boost.webp` (146 x 50). */
 const PAD_ART_ASPECT = 146 / 50;
-export function PlinkoBoard({
+
+/** `memo` because none of the props change during a drop, while the parent
+ * does re-render (phase changes, hint toggles) -- and reconciling the whole
+ * wall/gate tree for nothing is JS-thread work during the busiest moment. */
+export const PlinkoBoard = memo(function PlinkoBoard({
   world,
   pad,
   layout,
@@ -97,4 +102,4 @@ export function PlinkoBoard({
         })()}
     </Group>
   );
-}
+});

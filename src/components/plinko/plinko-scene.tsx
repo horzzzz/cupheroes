@@ -1,5 +1,5 @@
 import { Canvas, Group, Image, Rect } from '@shopify/react-native-skia';
-import { useEffect } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -64,6 +64,42 @@ function StrokedLabel({
   );
 }
 
+type CupCountProps = {
+  boardScale: number;
+  style: StyleProp<TextStyle>;
+  /** Only the top counter has one -- it rides along with the aim. */
+  animatedStyle?: unknown;
+};
+
+/**
+ * The two cup counters, each its own leaf with its own store subscription.
+ *
+ * This split is a performance fix, not tidiness: `usePlinkoRunner` pushes the
+ * live counts into the store 5x a second, and while `PlinkoScene` itself
+ * subscribed, every one of those ticks re-rendered the whole scene -- a new
+ * `Gesture.Pan()` (which makes gesture-handler re-attach the gesture), a full
+ * reconcile of the Skia board tree, and ~7 `StrokedLabel`s each expanding to
+ * several `<Text>` copies. That showed up as a periodic hitch on the JS thread
+ * during a heavy drop, on top of whatever the solver was doing.
+ */
+const TopCupCount = memo(function TopCupCount({ boardScale, style, animatedStyle }: CupCountProps) {
+  const remaining = usePlinkoStore((s) => s.remaining);
+  return (
+    <StrokedLabel strokeWidth={Math.max(1.5, Math.round(2 * boardScale))} style={style} animatedStyle={animatedStyle}>
+      {remaining}
+    </StrokedLabel>
+  );
+});
+
+const BottomCupCount = memo(function BottomCupCount({ boardScale, style }: CupCountProps) {
+  const collected = usePlinkoStore((s) => s.collected);
+  return (
+    <StrokedLabel strokeWidth={Math.max(1.5, Math.round(2 * boardScale))} style={style}>
+      {collected}
+    </StrokedLabel>
+  );
+});
+
 /**
  * The interactive pachinko board -- Figma node 1:1916. The Skia canvas
  * (background image, board, balls, cups) plus a full-cover pan gesture that
@@ -100,42 +136,43 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
   const texture = usePlinkoBallTexture(PLINKO_TUNING.radius, boardScale);
   const sprites = usePlinkoSprites();
 
-  const remaining = usePlinkoStore((s) => s.remaining);
-  const collected = usePlinkoStore((s) => s.collected);
-
   // Press-drag-release: steer the cup while the finger is down, pour on
   // release. Once released, `aimLocked` freezes the cup for the rest of this
   // drop (unlocked again by the next wave's interlude).
-  const pan = Gesture.Pan()
-    .minDistance(0)
-    .onBegin((e) => {
-      'worklet';
-      if (world.aimLocked.value === 0) {
-        world.aimX.value = clampAim(e.x / boardScale);
-        // Grabbing the cup is a button press as far as the player is
-        // concerned; the release is voiced by `use-plinko-sfx` off
-        // `aimLocked`, so only the grab needs a cue here.
-        runOnJS(playSfx)('ui-click');
-      }
-    })
-    .onChange((e) => {
-      'worklet';
-      if (world.aimLocked.value === 0) world.aimX.value = clampAim(e.x / boardScale);
-    })
-    .onEnd(() => {
-      'worklet';
-      if (world.aimLocked.value === 0) {
-        world.aimLocked.value = 1;
-        runOnJS(onThrow)();
-      }
-    })
-    .onFinalize(() => {
-      'worklet';
-      if (world.aimLocked.value === 0) {
-        world.aimLocked.value = 1;
-        runOnJS(onThrow)();
-      }
-    });
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(0)
+        .onBegin((e) => {
+          'worklet';
+          if (world.aimLocked.value === 0) {
+            world.aimX.value = clampAim(e.x / boardScale);
+            // Grabbing the cup is a button press as far as the player is
+            // concerned; the release is voiced by `use-plinko-sfx` off
+            // `aimLocked`, so only the grab needs a cue here.
+            runOnJS(playSfx)('ui-click');
+          }
+        })
+        .onChange((e) => {
+          'worklet';
+          if (world.aimLocked.value === 0) world.aimX.value = clampAim(e.x / boardScale);
+        })
+        .onEnd(() => {
+          'worklet';
+          if (world.aimLocked.value === 0) {
+            world.aimLocked.value = 1;
+            runOnJS(onThrow)();
+          }
+        })
+        .onFinalize(() => {
+          'worklet';
+          if (world.aimLocked.value === 0) {
+            world.aimLocked.value = 1;
+            runOnJS(onThrow)();
+          }
+        }),
+    [world, boardScale, onThrow],
+  );
 
   // Top cup counter rides with the aim; bottom one is fixed over the throat.
   const topNumStyle = useAnimatedStyle(() => ({
@@ -191,8 +228,9 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
         );
       })}
 
-      <StrokedLabel
-        strokeWidth={Math.max(1.5, Math.round(2 * boardScale))}
+      <TopCupCount
+        boardScale={boardScale}
+        animatedStyle={topNumStyle}
         style={[
           styles.cupNumber,
           {
@@ -201,12 +239,10 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
             fontSize: 24 * boardScale,
           },
         ]}
-        animatedStyle={topNumStyle}>
-        {remaining}
-      </StrokedLabel>
+      />
 
-      <StrokedLabel
-        strokeWidth={Math.max(1.5, Math.round(2 * boardScale))}
+      <BottomCupCount
+        boardScale={boardScale}
         style={[
           styles.cupNumber,
           {
@@ -214,9 +250,8 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
             left: ((PLINKO_CUPS.mouthX0 + PLINKO_CUPS.mouthX1) / 2) * boardScale - 30,
             fontSize: 24 * boardScale,
           },
-        ]}>
-        {collected}
-      </StrokedLabel>
+        ]}
+      />
 
       {awaitingThrow && (
         <StrokedLabel

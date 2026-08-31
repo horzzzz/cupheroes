@@ -4,32 +4,25 @@ import type { PlinkoWall } from '@/constants/plinko';
  * Worklet-safe collision primitives for the pachinko solver. No allocations,
  * no shared-value access -- pure number math so they can be called from any
  * worklet on the UI thread.
+ *
+ * "No allocations" is load-bearing, not a style note: at a full board this is
+ * called ~8.6k times per rendered frame (live balls x walls x sub-steps), and
+ * returning a `{nx, ny, pen}` result object from here was handing Hermes'
+ * UI-thread GC tens of megabytes of garbage a second -- which is what the
+ * visible stutter at high ball counts actually was. Results go out through a
+ * caller-owned scratch array instead.
  */
 
-/** Deterministic xorshift32 in [0,1). Advances and stores `state` back. */
-export function rand01(state: number): { value: number; next: number } {
-  'worklet';
-  let x = state | 0;
-  x ^= x << 13;
-  x ^= x >>> 17;
-  x ^= x << 5;
-  const n = x | 0;
-  return { value: (n >>> 0) / 4294967296, next: n };
-}
-
-export type WallHit = {
-  hit: boolean;
-  /** Outward unit normal (world space) and penetration depth. */
-  nx: number;
-  ny: number;
-  pen: number;
-};
-
-const NO_HIT: WallHit = { hit: false, nx: 0, ny: 0, pen: 0 };
+export type WallHitOut = number[];
 
 /**
- * Circle (px,py,r) vs a rounded oriented box. Returns the outward normal and
- * how far the circle has penetrated the box's rounded surface.
+ * Circle (px,py,r) vs a rounded oriented box. Writes the outward normal into
+ * `out[0..1]` and the penetration depth into `out[2]`, and returns whether
+ * there was a hit at all (`out` is untouched when there wasn't).
+ *
+ * `ca`/`sa` are `cos(w.a)`/`sin(w.a)`, precomputed by the caller once per
+ * wall per sub-step -- the angles are static for the whole layout, so
+ * recomputing them per ball was ~1M trig calls a second for nothing.
  *
  * Method: rotate the circle center into the box's local frame, clamp it to
  * the box's inner rectangle (extents shrunk by the corner radius), and treat
@@ -37,10 +30,16 @@ const NO_HIT: WallHit = { hit: false, nx: 0, ny: 0, pen: 0 };
  * center. If the center is *inside* the inner rectangle the offset is ~0, so
  * we eject along whichever local axis is the shallower way out.
  */
-export function collideCircleWall(px: number, py: number, r: number, w: PlinkoWall): WallHit {
+export function collideCircleWall(
+  out: WallHitOut,
+  px: number,
+  py: number,
+  r: number,
+  w: PlinkoWall,
+  ca: number,
+  sa: number,
+): boolean {
   'worklet';
-  const ca = Math.cos(w.a);
-  const sa = Math.sin(w.a);
   const dx = px - w.cx;
   const dy = py - w.cy;
 
@@ -53,12 +52,12 @@ export function collideCircleWall(px: number, py: number, r: number, w: PlinkoWa
   const qx = lx < -ex ? -ex : lx > ex ? ex : lx;
   const qy = ly < -ey ? -ey : ly > ey ? ey : ly;
 
-  let ox = lx - qx;
-  let oy = ly - qy;
+  const ox = lx - qx;
+  const oy = ly - qy;
   const d2 = ox * ox + oy * oy;
   const rr = r + w.r;
 
-  if (d2 >= rr * rr) return NO_HIT;
+  if (d2 >= rr * rr) return false;
 
   let d = Math.sqrt(d2);
   let nlx: number;
@@ -79,16 +78,12 @@ export function collideCircleWall(px: number, py: number, r: number, w: PlinkoWa
       nly = ly < 0 ? -1 : 1;
       d = -outY;
     }
-    ox = 0;
-    oy = 0;
   }
 
-  return {
-    hit: true,
-    nx: nlx * ca - nly * sa,
-    ny: nlx * sa + nly * ca,
-    pen: rr - d,
-  };
+  out[0] = nlx * ca - nly * sa;
+  out[1] = nlx * sa + nly * ca;
+  out[2] = rr - d;
+  return true;
 }
 
 /** Whether point (px,py) is inside an axis-aligned rect. */
