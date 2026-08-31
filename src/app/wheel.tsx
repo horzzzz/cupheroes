@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FortuneWheel, type FortuneWheelHandle, type WheelSector } from '@/components/wheel/fortune-wheel';
@@ -9,7 +9,9 @@ import { SpinButton } from '@/components/wheel/spin-button';
 import { WheelBackground } from '@/components/wheel/wheel-background';
 import { WheelHeader } from '@/components/wheel/wheel-header';
 import { WheelResultOverlay } from '@/components/wheel/wheel-result-overlay';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { MainScreen } from '@/constants/theme';
+import { playSfx, startWheelLoop, stopWheelLoop } from '@/game/audio/engine';
 import { localDateKey, msUntilLocalMidnight } from '@/game/daily/rewards';
 import { sectorReward } from '@/game/economy/rewards';
 import { useEconomyStore } from '@/game/economy/store';
@@ -42,6 +44,10 @@ export default function WheelScreen() {
     return () => clearInterval(id);
   }, []);
 
+  // Leaving mid-spin (the close button, or the hardware back button on
+  // Android) shouldn't leave the rattle looping under the next screen.
+  useEffect(() => stopWheelLoop, []);
+
   // The free spin refreshes at local midnight, in step with the daily bonus
   // (see `daily/store.ts`) rather than 24h after the last spin.
   const isLocked =
@@ -49,6 +55,8 @@ export default function WheelScreen() {
     localDateKey(new Date(lastFreeSpinAt)) === localDateKey(new Date(now));
 
   const handleSpinEnd = useCallback((sector: WheelSector) => {
+    stopWheelLoop();
+    playSfx('victory');
     setSpinning(false);
     setResult(sector);
     grant(sectorReward(sector));
@@ -57,6 +65,7 @@ export default function WheelScreen() {
   const startSpin = useCallback((startsCooldown: boolean) => {
     if (spinning || result) return;
     setSpinning(true);
+    startWheelLoop();
     // `startsCooldown === false` is the rewarded-ad spin -- TODO(ads): show
     // a rewarded ad before this actually fires; it already bypasses the
     // cooldown same as before.
@@ -68,12 +77,12 @@ export default function WheelScreen() {
     <>
       <WheelBackground />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-        <Pressable
+        <GamePressable
           onPress={() => router.back()}
           hitSlop={12}
           style={{ position: 'absolute', right: 15, top: insets.top, zIndex: 10 }}>
           <Image source={CLOSE_ICON} style={{ width: 36, height: 36 }} contentFit="contain" />
-        </Pressable>
+        </GamePressable>
 
         <View style={{ flex: 1, width: '100%', maxWidth: MainScreen.frameWidth, alignSelf: 'center' }}>
           <View style={{ paddingTop: 60 }}>

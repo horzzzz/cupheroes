@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -59,7 +60,7 @@ export function UpgradeNode({
   const icon = ICONS[kind];
 
   return (
-    <Pressable
+    <GamePressable
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -118,6 +119,6 @@ export function UpgradeNode({
           <GameText style={{ fontFamily: Fonts.titan, fontSize: 16, color: '#0a3061' }}>✓</GameText>
         </View>
       ) : null}
-    </Pressable>
+    </GamePressable>
   );
 }

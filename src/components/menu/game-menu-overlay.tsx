@@ -1,13 +1,15 @@
 import { Image } from 'expo-image';
-import { type ReactNode, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { type ReactNode } from 'react';
+import { Modal, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MenuBackground } from '@/components/menu/menu-background';
 import { VolumeSlider } from '@/components/menu/volume-slider';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors, MainScreen } from '@/constants/theme';
+import { useAudioSettingsStore } from '@/game/audio/store';
 
 const CLOSE_ICON = require('@/assets/images/menu/icon-close.webp');
 
@@ -20,17 +22,14 @@ type GameMenuOverlayProps = {
   footer: ReactNode;
 };
 
-function SettingRow({ label, initialValue }: { label: string; initialValue: number }) {
-  // Music/sound have no real audio system behind them yet — the slider just
-  // holds its own local value as a stand-in.
-  const [value, setValue] = useState(initialValue);
+function SettingRow({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
     <View style={styles.row}>
       <View style={styles.rowHeader}>
         <GameText style={styles.rowLabel}>{label}</GameText>
         <GameText style={styles.rowLabel}>{Math.round(value * 100)}%</GameText>
       </View>
-      <VolumeSlider value={value} onChange={setValue} />
+      <VolumeSlider value={value} onChange={onChange} />
     </View>
   );
 }
@@ -47,6 +46,10 @@ export function GameMenuOverlay({ visible, onClose, title, notice, footer }: Gam
   // so the close button needs the top inset added in by hand or it sits
   // under the status bar/notch.
   const insets = useSafeAreaInsets();
+  const musicVolume = useAudioSettingsStore((s) => s.musicVolume);
+  const sfxVolume = useAudioSettingsStore((s) => s.sfxVolume);
+  const setMusicVolume = useAudioSettingsStore((s) => s.setMusicVolume);
+  const setSfxVolume = useAudioSettingsStore((s) => s.setSfxVolume);
 
   return (
     <Modal
@@ -58,19 +61,19 @@ export function GameMenuOverlay({ visible, onClose, title, notice, footer }: Gam
       <View style={styles.root}>
         <MenuBackground />
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-          <Pressable
+          <GamePressable
             onPress={onClose}
             hitSlop={12}
             style={[styles.closeButton, { top: insets.top }]}>
             <Image source={CLOSE_ICON} style={styles.closeIcon} contentFit="contain" />
-          </Pressable>
+          </GamePressable>
 
           <View style={styles.column}>
             <GameText style={styles.title}>{title}</GameText>
 
             <View style={styles.content}>
-              <SettingRow label="MUSIC" initialValue={1} />
-              <SettingRow label="SOUND" initialValue={1} />
+              <SettingRow label="MUSIC" value={musicVolume} onChange={setMusicVolume} />
+              <SettingRow label="SOUND" value={sfxVolume} onChange={setSfxVolume} />
 
               <View style={styles.links}>
                 <GameText gradient style={styles.link}>

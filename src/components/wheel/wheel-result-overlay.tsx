@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { WheelSector } from '@/components/wheel/fortune-wheel';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -81,11 +82,11 @@ export function WheelResultOverlay({ sector, onCollect }: WheelResultOverlayProp
           </GameText>
         </View>
 
-        <Pressable
+        <GamePressable
           onPress={onCollect}
           style={{ marginTop: 40, width: COLLECT_WIDTH, height: COLLECT_HEIGHT }}>
           <Image source={COLLECT_ASSET} style={StyleSheet.absoluteFill} contentFit="fill" />
-        </Pressable>
+        </GamePressable>
       </View>
     </View>
   );

@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 
@@ -34,7 +35,7 @@ export function BuyButton({
   const free = variant === 'buy' && price === 0;
 
   return (
-    <Pressable
+    <GamePressable
       onPress={onPress}
       style={{ width: W * scale, height: H * scale }}
       hitSlop={6}>
@@ -63,6 +64,6 @@ export function BuyButton({
           {variant === 'ad' || free ? 'Free' : String(price)}
         </GameText>
       </View>
-    </Pressable>
+    </GamePressable>
   );
 }

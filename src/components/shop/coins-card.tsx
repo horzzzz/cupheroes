@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -103,7 +104,7 @@ export function CoinsCard({ pack, gems, onBuy }: CoinsCardProps) {
         </GameText>
       </View>
 
-      <Pressable
+      <GamePressable
         onPress={onBuy}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
@@ -138,7 +139,7 @@ export function CoinsCard({ pack, gems, onBuy }: CoinsCardProps) {
             {pack.price}
           </GameText>
         </View>
-      </Pressable>
+      </GamePressable>
     </View>
   );
 }

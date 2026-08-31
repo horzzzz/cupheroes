@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { BuyButton } from '@/components/draft/buy-button';
 import { SkillCard } from '@/components/draft/skill-card';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { BattleFrame } from '@/constants/battle';
@@ -113,7 +114,7 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
               );
             })}
 
-            <Pressable
+            <GamePressable
               style={{
                 position: 'absolute',
                 left: (195 - 95) * scale,
@@ -144,9 +145,9 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
                   Get all
                 </GameText>
               </View>
-            </Pressable>
+            </GamePressable>
 
-            <Pressable
+            <GamePressable
               style={{
                 position: 'absolute',
                 left: (195 - 95) * scale,
@@ -180,7 +181,7 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
                   {DRAFT_REFRESH_COST}
                 </GameText>
               </View>
-            </Pressable>
+            </GamePressable>
           </View>
         </View>
       )}

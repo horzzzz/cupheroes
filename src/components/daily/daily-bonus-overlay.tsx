@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { useDesignScale } from '@/hooks/use-design-scale';
@@ -114,9 +115,9 @@ export function DailyBonusOverlay({ visible, onClose }: { visible: boolean; onCl
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        {/* Swallow taps on the popup itself. */}
-        <Pressable style={{ width: PANEL_W * s }} onPress={() => {}}>
+      <GamePressable style={styles.backdrop} onPress={onClose}>
+        {/* Swallow taps on the popup itself -- no sound, it isn't a button. */}
+        <GamePressable silent style={{ width: PANEL_W * s }} onPress={() => {}}>
           <View style={{ width: PANEL_W * s, height: PANEL_H * s }}>
             <View
               style={[
@@ -143,12 +144,12 @@ export function DailyBonusOverlay({ visible, onClose }: { visible: boolean; onCl
               }}
             />
 
-            <Pressable
+            <GamePressable
               onPress={onClose}
               hitSlop={12}
               style={{ position: 'absolute', right: -10 * s, top: -10 * s }}>
               <Image source={CLOSE_ICON} style={{ width: 36 * s, height: 36 * s }} contentFit="contain" />
-            </Pressable>
+            </GamePressable>
 
             <GameText
               gradient
@@ -208,7 +209,7 @@ export function DailyBonusOverlay({ visible, onClose }: { visible: boolean; onCl
           {/* Below the panel: CLAIM, or the claimed state + countdown. */}
           <View style={{ alignItems: 'center', marginTop: 26 * s }}>
             {status.phase === 'ready' ? (
-              <Pressable
+              <GamePressable
                 onPress={() => claim(today)}
                 style={{ width: 190 * s, height: 70 * s }}>
                 <Image source={CLAIM_PILL} style={StyleSheet.absoluteFill} contentFit="fill" />
@@ -223,7 +224,7 @@ export function DailyBonusOverlay({ visible, onClose }: { visible: boolean; onCl
                     claim
                   </GameText>
                 </View>
-              </Pressable>
+              </GamePressable>
             ) : (
               <>
                 <GameText
@@ -248,8 +249,8 @@ export function DailyBonusOverlay({ visible, onClose }: { visible: boolean; onCl
               </>
             )}
           </View>
-        </Pressable>
-      </Pressable>
+        </GamePressable>
+      </GamePressable>
     </Modal>
   );
 }

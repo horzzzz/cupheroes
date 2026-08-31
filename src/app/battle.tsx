@@ -20,6 +20,7 @@ import { chapterTheme } from '@/constants/chapters';
 import { Colors } from '@/constants/theme';
 import { Fonts } from '@/constants/fonts';
 import { useBattleScheduler } from '@/game/battle/use-battle-scheduler';
+import { useBattleSfx } from '@/game/battle/use-battle-sfx';
 import { displayBalls, useBattleStore, waveProgress } from '@/game/battle/store';
 import { useGameClock } from '@/game/clock';
 import { usePlinkoInterlude } from '@/game/plinko/use-plinko-interlude';
@@ -51,6 +52,7 @@ const PLINKO_DECK_BG = '#241009';
 export default function BattleScreen() {
   const clock = useGameClock();
   useBattleScheduler(clock);
+  useBattleSfx(clock);
   const insets = useSafeAreaInsets();
   // `sx` (width-only) for the battle scene -- it IS the container, so it pins
   // to device width. `rawS` (contain, edge-to-edge) for the pachinko board --

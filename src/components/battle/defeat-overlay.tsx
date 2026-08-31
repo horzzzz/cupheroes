@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RewardRow } from '@/components/ui/reward-row';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -35,7 +36,7 @@ export function DefeatOverlay({
   onContinue: () => void;
 }) {
   return (
-    <Pressable style={styles.root} onPress={onContinue}>
+    <GamePressable style={styles.root} onPress={onContinue}>
       <View style={styles.backdrop} />
 
       <Image source={BANNER_ICON} style={styles.banner} contentFit="contain" />
@@ -45,17 +46,17 @@ export function DefeatOverlay({
 
       <RewardRow reward={reward} />
 
-      <Pressable
+      <GamePressable
         style={styles.adButton}
         onPress={() => {
           // TODO(ads): watch a rewarded ad, then grant this same `reward` a second time.
         }}>
         <Image source={AD_ICON} style={{ width: 22, height: 22 }} contentFit="contain" />
         <GameText style={styles.adLabel}>Double reward</GameText>
-      </Pressable>
+      </GamePressable>
 
       <GameText style={styles.tapHint}>Tap to continue</GameText>
-    </Pressable>
+    </GamePressable>
   );
 }
 

@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { BalancePill } from '@/components/ui/balance-pill';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { LevelBadge } from '@/components/upgrades/level-badge';
 import { Colors } from '@/constants/theme';
 import { localDateKey } from '@/game/daily/rewards';
@@ -72,29 +73,29 @@ export function TopBar({ onOpenSettings, onOpenWheel, onOpenDaily }: TopBarProps
   return (
     <View style={{ minHeight: ICON_STACK_HEIGHT }}>
       <View style={{ position: 'absolute', right: 0, gap: 20 }}>
-        <Pressable onPress={onOpenSettings}>
+        <GamePressable onPress={onOpenSettings}>
           <Image
             source={SETTINGS_ICON}
             style={{ width: ICON_SIZE, height: ICON_SIZE }}
             contentFit="contain"
           />
-        </Pressable>
-        <Pressable onPress={onOpenWheel}>
+        </GamePressable>
+        <GamePressable onPress={onOpenWheel}>
           <Image
             source={WHEEL_ICON}
             style={{ width: ICON_SIZE, height: ICON_SIZE }}
             contentFit="contain"
           />
           {wheelReady && <ReadyBadge />}
-        </Pressable>
-        <Pressable onPress={onOpenDaily}>
+        </GamePressable>
+        <GamePressable onPress={onOpenDaily}>
           <Image
             source={DAILY_REWARD_ICON}
             style={{ width: ICON_SIZE, height: ICON_SIZE }}
             contentFit="contain"
           />
           {dailyReady && <ReadyBadge />}
-        </Pressable>
+        </GamePressable>
       </View>
 
       <View style={{ gap: 20 }}>

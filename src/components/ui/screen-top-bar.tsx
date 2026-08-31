@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { BalancePill } from '@/components/ui/balance-pill';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { useEconomyStore } from '@/game/economy/store';
 
 const COIN_ICON = require('@/assets/images/main/icon-coin.webp');
@@ -35,13 +36,13 @@ export function ScreenTopBar({ onOpenSettings, children }: ScreenTopBarProps) {
         <BalancePill icon={COIN_ICON} value={coins} />
         <BalancePill icon={GEM_ICON} value={gems} />
 
-        <Pressable style={{ marginLeft: 'auto' }} onPress={onOpenSettings}>
+        <GamePressable style={{ marginLeft: 'auto' }} onPress={onOpenSettings}>
           <Image
             source={SETTINGS_ICON}
             style={{ width: ICON_SIZE, height: ICON_SIZE }}
             contentFit="contain"
           />
-        </Pressable>
+        </GamePressable>
       </View>
 
       {children ? <View style={{ marginTop: CHILDREN_GAP }}>{children}</View> : null}

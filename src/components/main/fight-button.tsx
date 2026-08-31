@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -29,7 +30,7 @@ export function FightButton({ onPress }: FightButtonProps) {
   const fontSize = FONT_SIZE_BASE * (width / WIDTH_BASE);
 
   return (
-    <Pressable
+    <GamePressable
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -53,7 +54,7 @@ export function FightButton({ onPress }: FightButtonProps) {
           FIGHT
         </GameText>
       </View>
-    </Pressable>
+    </GamePressable>
   );
 }
 

@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -33,7 +34,7 @@ export function SpinButton({ variant, timerLabel, disabled, onPress }: SpinButto
   const isDisabled = disabled || variant === 'locked';
 
   return (
-    <Pressable
+    <GamePressable
       onPress={isDisabled ? undefined : onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -55,7 +56,7 @@ export function SpinButton({ variant, timerLabel, disabled, onPress }: SpinButto
           <GameText style={styles.timer}>{timerLabel}</GameText>
         </View>
       )}
-    </Pressable>
+    </GamePressable>
   );
 }
 

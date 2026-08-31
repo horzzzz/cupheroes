@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -146,7 +147,7 @@ export function UpgradePopup({
             </GameText>
           </View>
 
-          <Pressable
+          <GamePressable
             onPress={owned ? undefined : onBuy}
             onPressIn={() => setPressed(true)}
             onPressOut={() => setPressed(false)}
@@ -196,11 +197,11 @@ export function UpgradePopup({
                 </GameText>
               </View>
             )}
-          </Pressable>
+          </GamePressable>
         </>
       )}
 
-      <Pressable
+      <GamePressable
         onPress={onClose}
         hitSlop={10}
         style={{
@@ -211,7 +212,7 @@ export function UpgradePopup({
           height: CLOSE_SIZE,
         }}>
         <Image source={CLOSE_ICON} style={StyleSheet.absoluteFill} contentFit="contain" />
-      </Pressable>
+      </GamePressable>
     </View>
   );
 }

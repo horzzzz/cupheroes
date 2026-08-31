@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { GameMenuOverlay } from '@/components/menu/game-menu-overlay';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -50,24 +51,24 @@ export function PauseModal({ visible, onClose, onHome, onRetry }: PauseModalProp
       footer={
         confirmingExit ? (
           <View style={styles.confirmRow}>
-            <Pressable onPress={() => setConfirmingExit(false)} style={styles.confirmButton}>
+            <GamePressable onPress={() => setConfirmingExit(false)} style={styles.confirmButton}>
               <GameText style={styles.confirmLabel}>Stay</GameText>
-            </Pressable>
-            <Pressable onPress={onHome} style={styles.confirmButton}>
+            </GamePressable>
+            <GamePressable onPress={onHome} style={styles.confirmButton}>
               <GameText style={[styles.confirmLabel, styles.confirmLeave]}>Leave</GameText>
-            </Pressable>
+            </GamePressable>
           </View>
         ) : (
           <View style={styles.row}>
-            <Pressable onPress={() => setConfirmingExit(true)}>
+            <GamePressable onPress={() => setConfirmingExit(true)}>
               <Image source={HOME_ICON} style={styles.icon} contentFit="contain" />
-            </Pressable>
-            <Pressable onPress={onRetry}>
+            </GamePressable>
+            <GamePressable onPress={onRetry}>
               <Image source={RETRY_ICON} style={styles.icon} contentFit="contain" />
-            </Pressable>
-            <Pressable onPress={onClose}>
+            </GamePressable>
+            <GamePressable onPress={onClose}>
               <Image source={CONTINUE_ICON} style={styles.icon} contentFit="contain" />
-            </Pressable>
+            </GamePressable>
           </View>
         )
       }

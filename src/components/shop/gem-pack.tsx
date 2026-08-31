@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -30,7 +31,7 @@ export function GemPack({ amount, art, locked, left, top, onPress }: GemPackProp
   const [pressed, setPressed] = useState(false);
 
   return (
-    <Pressable
+    <GamePressable
       onPress={locked ? undefined : onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -74,6 +75,6 @@ export function GemPack({ amount, art, locked, left, top, onPress }: GemPackProp
           {amount}
         </GameText>
       </View>
-    </Pressable>
+    </GamePressable>
   );
 }

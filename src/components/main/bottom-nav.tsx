@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTabTrigger } from 'expo-router/ui';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -96,7 +97,7 @@ export function BottomNav() {
               flex: 1,
               alignItems: index === 0 ? 'flex-start' : index === 2 ? 'flex-end' : 'center',
             }}>
-            <Pressable
+            <GamePressable
               style={{ width: BUTTON_SIZE, height: BUTTON_SIZE }}
               onPress={() => switchTab(item.key, {})}>
               <Image
@@ -118,7 +119,7 @@ export function BottomNav() {
                 }}>
                 {item.label}
               </GameText>
-            </Pressable>
+            </GamePressable>
           </View>
         ))}
       </View>

@@ -9,8 +9,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LoadingScreen } from '@/components/loader/loading-screen';
 import { StartScreen } from '@/components/loader/start-screen';
+import { initAudio } from '@/game/audio/engine';
+import '@/game/audio/store';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// Creates every player up front so the first sound ever played has nothing
+// left to load -- importing the store (above) starts its AsyncStorage read
+// in parallel; whichever finishes first, `game/audio/engine.ts` accepts a
+// volume write before or after `initAudio()` itself resolves (see its own
+// comment).
+initAudio();
 
 type Phase = 'loading' | 'start' | 'app';
 

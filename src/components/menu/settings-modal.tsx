@@ -1,10 +1,8 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { GameMenuOverlay } from '@/components/menu/game-menu-overlay';
-import { GameText } from '@/components/ui/game-text';
-import { Fonts } from '@/constants/fonts';
-import { Colors } from '@/constants/theme';
+import { GamePressable } from '@/components/ui/game-pressable';
 
 const CONTINUE_BUTTON = require('@/assets/images/menu/button-continue.webp');
 
@@ -21,9 +19,9 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
       onClose={onClose}
       title="SETTINGS"
       footer={
-        <Pressable onPress={onClose} style={styles.button}>
+        <GamePressable onPress={onClose} style={styles.button}>
           <Image source={CONTINUE_BUTTON} style={StyleSheet.absoluteFill} contentFit="fill" />
-        </Pressable>
+        </GamePressable>
       }
     />
   );

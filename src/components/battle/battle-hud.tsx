@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { BalancePill } from '@/components/ui/balance-pill';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -73,21 +74,21 @@ export function BattleHud({
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 * scale }}>
           {!hideFast && (
-            <Pressable onPress={onToggleFast} style={{ opacity: fast ? 1 : 0.6 }} hitSlop={8}>
+            <GamePressable onPress={onToggleFast} style={{ opacity: fast ? 1 : 0.6 }} hitSlop={8}>
               <Image
                 source={X2_ICON}
                 style={{ width: ICON_SIZE * scale, height: ICON_SIZE * scale }}
                 contentFit="contain"
               />
-            </Pressable>
+            </GamePressable>
           )}
-          <Pressable onPress={onPause} hitSlop={8}>
+          <GamePressable onPress={onPause} hitSlop={8}>
             <Image
               source={PAUSE_ICON}
               style={{ width: ICON_SIZE * scale, height: ICON_SIZE * scale }}
               contentFit="contain"
             />
-          </Pressable>
+          </GamePressable>
         </View>
       </View>
 

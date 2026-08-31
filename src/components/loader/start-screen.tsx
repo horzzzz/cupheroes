@@ -1,11 +1,13 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { LoaderBackground } from '@/components/loader/loader-background';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { startMusic } from '@/game/audio/engine';
 import { useDesignScale } from '@/hooks/use-design-scale';
 
 const LOGO_ASSET = require('@/assets/images/loader/logo.webp');
@@ -70,8 +72,15 @@ export function StartScreen({ onStart }: StartScreenProps) {
         contentFit="contain"
       />
 
-      <Pressable
-        onPress={onStart}
+      <GamePressable
+        onPress={() => {
+          // The tap that dismisses this screen is the app's first user
+          // gesture -- the one place autoplay is guaranteed to be allowed
+          // (notably on web), so the one shared theme starts here and never
+          // stops for the rest of the session.
+          startMusic();
+          onStart();
+        }}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
         style={{
@@ -88,7 +97,7 @@ export function StartScreen({ onStart }: StartScreenProps) {
             PLAY
           </GameText>
         </View>
-      </Pressable>
+      </GamePressable>
 
       <GameText
         style={{

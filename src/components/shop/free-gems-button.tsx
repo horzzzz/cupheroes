@@ -1,6 +1,8 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Pressable, type StyleProp, type ViewStyle } from 'react-native';
+import { type StyleProp, type ViewStyle } from 'react-native';
+
+import { GamePressable } from '@/components/ui/game-pressable';
 
 const BUTTON_ASSET = require('@/assets/images/shop/button-free.webp');
 
@@ -21,7 +23,7 @@ export function FreeGemsButton({
   const [pressed, setPressed] = useState(false);
 
   return (
-    <Pressable
+    <GamePressable
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
@@ -31,6 +33,6 @@ export function FreeGemsButton({
         style={{ width: '100%', height: '100%' }}
         contentFit="contain"
       />
-    </Pressable>
+    </GamePressable>
   );
 }

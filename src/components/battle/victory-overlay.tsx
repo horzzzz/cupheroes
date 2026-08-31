@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RewardRow } from '@/components/ui/reward-row';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
@@ -46,19 +47,19 @@ export function VictoryOverlay({
 
       <RewardRow reward={reward} />
 
-      <Pressable onPress={onCollect} style={styles.button}>
+      <GamePressable onPress={onCollect} style={styles.button}>
         <Image source={BUTTON_ICON} style={StyleSheet.absoluteFill} contentFit="fill" />
         <GameText style={styles.buttonLabel}>Collect</GameText>
-      </Pressable>
+      </GamePressable>
 
-      <Pressable
+      <GamePressable
         style={styles.adButton}
         onPress={() => {
           // TODO(ads): watch a rewarded ad, then grant this same `reward` a second time.
         }}>
         <Image source={AD_ICON} style={{ width: 22, height: 22 }} contentFit="contain" />
         <GameText style={styles.adLabel}>Double reward</GameText>
-      </Pressable>
+      </GamePressable>
     </View>
   );
 }
