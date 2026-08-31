@@ -67,6 +67,9 @@ export function xpToNext(level: number): number {
 
 export const STARTING_BALANCE = { coins: 0, gems: 0, xp: 0 } as const;
 
+/** Gem bundle handed out for watching the shop's "free gems" rewarded video. */
+export const FREE_GEMS_AD_REWARD: Reward = { gems: 5 };
+
 /** Coin bundles bought with gems -- shop screen, node 1:144. */
 export type CoinsPack = {
   amount: number;

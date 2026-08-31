@@ -11,6 +11,8 @@ import { LoadingScreen } from '@/components/loader/loading-screen';
 import { StartScreen } from '@/components/loader/start-screen';
 import { initAudio } from '@/game/audio/engine';
 import '@/game/audio/store';
+import { initAds } from '@/services/ads';
+import { initAnalytics } from '@/services/analytics';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 // Creates every player up front so the first sound ever played has nothing
@@ -25,6 +27,11 @@ type Phase = 'loading' | 'start' | 'app';
 export default function RootLayout() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [fontsLoaded] = useFonts({ TitanOne_400Regular, Nunito_700Bold });
+
+  useEffect(() => {
+    initAnalytics();
+    initAds();
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});

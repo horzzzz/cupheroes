@@ -6,6 +6,7 @@ import { LoaderBackground } from '@/components/loader/loader-background';
 import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
+import { openPrivacy, openTerms } from '@/constants/links';
 import { Colors } from '@/constants/theme';
 import { startMusic } from '@/game/audio/engine';
 import { useDesignScale } from '@/hooks/use-design-scale';
@@ -30,8 +31,6 @@ const BUTTON_TOP = 589;
 const LEGAL_CENTER_Y = 732;
 const LEGAL_WIDTH = 347;
 const LINKS_CENTER_Y = 786.5;
-const TERMS_CENTER_X = 104;
-const PRIVACY_CENTER_X = 283;
 
 type StartScreenProps = {
   onStart: () => void;
@@ -114,6 +113,10 @@ export function StartScreen({ onStart }: StartScreenProps) {
         By tapping “PLAY” you confirm that you 18+ and
       </GameText>
 
+      {/* Centred flex row rather than two fixed-x absolute labels: the Figma
+          widths were too tight for the rendered Nunito, so "Privacy policy"
+          wrapped to a second line on narrower (Android) screens. One line,
+          shrink-to-fit as a last resort. */}
       <View
         style={{
           position: 'absolute',
@@ -121,34 +124,27 @@ export function StartScreen({ onStart }: StartScreenProps) {
           right: 0,
           top: LINKS_CENTER_Y * sy - (24 * s) / 2,
           flexDirection: 'row',
-        }}
-        pointerEvents="none">
-        <GameText
-          style={{
-            position: 'absolute',
-            left: TERMS_CENTER_X * sx - (152 * s) / 2,
-            width: 152 * s,
-            textAlign: 'center',
-            fontFamily: Fonts.nunito,
-            fontSize: 24 * s,
-            color: Colors.white,
-            textDecorationLine: 'underline',
-          }}>
-          Terms of Use
-        </GameText>
-        <GameText
-          style={{
-            position: 'absolute',
-            left: PRIVACY_CENTER_X * sx - (154 * s) / 2,
-            width: 154 * s,
-            textAlign: 'center',
-            fontFamily: Fonts.nunito,
-            fontSize: 24 * s,
-            color: Colors.white,
-            textDecorationLine: 'underline',
-          }}>
-          Privacy policy
-        </GameText>
+          justifyContent: 'center',
+          gap: 36 * s,
+        }}>
+        {[
+          { label: 'Terms of Use', onPress: openTerms },
+          { label: 'Privacy policy', onPress: openPrivacy },
+        ].map(({ label, onPress }) => (
+          <GamePressable key={label} onPress={onPress} hitSlop={12}>
+            <GameText
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={{
+                fontFamily: Fonts.nunito,
+                fontSize: 24 * s,
+                color: Colors.white,
+                textDecorationLine: 'underline',
+              }}>
+              {label}
+            </GameText>
+          </GamePressable>
+        ))}
       </View>
     </View>
   );

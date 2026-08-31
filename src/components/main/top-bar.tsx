@@ -29,14 +29,19 @@ type TopBarProps = {
   onOpenDaily?: () => void;
 };
 
-/** Red "ready" dot shared by the wheel and daily-reward icons. */
+/** Red "ready" dot shared by the wheel and daily-reward icons.
+ *
+ * Pinned flush to the icon's top-right corner (not overhanging it): the icon
+ * column is an `right: 0` absolute overlay, so a negative offset put the dot
+ * past the parent's edge where Android clips overflowing children (iOS draws
+ * it) -- the badge came out sliced on Android only. */
 function ReadyBadge() {
   return (
     <View
       style={{
         position: 'absolute',
-        top: -2,
-        right: -2,
+        top: 0,
+        right: 0,
         width: 12,
         height: 12,
         borderRadius: 6,

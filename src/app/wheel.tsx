@@ -15,6 +15,7 @@ import { playSfx, startWheelLoop, stopWheelLoop } from '@/game/audio/engine';
 import { localDateKey, msUntilLocalMidnight } from '@/game/daily/rewards';
 import { sectorReward } from '@/game/economy/rewards';
 import { useEconomyStore } from '@/game/economy/store';
+import { adsEnabled, showRewarded } from '@/services/ads';
 
 const CLOSE_ICON = require('@/assets/images/menu/icon-close.webp');
 
@@ -66,9 +67,8 @@ export default function WheelScreen() {
     if (spinning || result) return;
     setSpinning(true);
     startWheelLoop();
-    // `startsCooldown === false` is the rewarded-ad spin -- TODO(ads): show
-    // a rewarded ad before this actually fires; it already bypasses the
-    // cooldown same as before.
+    // `startsCooldown === false` is the rewarded-ad spin -- the ad has
+    // already been watched by the caller; it bypasses the daily cooldown.
     if (startsCooldown) startFreeSpin(Date.now());
     wheelRef.current?.spin();
   }, [spinning, result, startFreeSpin]);
@@ -94,8 +94,15 @@ export default function WheelScreen() {
           </View>
 
           <View style={{ alignItems: 'center', gap: 15, marginBottom: 30 }}>
-            {isLocked && (
-              <SpinButton variant="ad" disabled={spinning} onPress={() => startSpin(false)} />
+            {isLocked && adsEnabled() && (
+              <SpinButton
+                variant="ad"
+                disabled={spinning}
+                onPress={async () => {
+                  if (spinning || result) return;
+                  if (await showRewarded('wheel_extra_spin')) startSpin(false);
+                }}
+              />
             )}
             <SpinButton
               variant={isLocked ? 'locked' : 'primary'}

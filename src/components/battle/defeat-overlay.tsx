@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { RewardRow } from '@/components/ui/reward-row';
@@ -8,6 +9,8 @@ import { Fonts } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
 import { WAVE_COUNT } from '@/constants/battle';
 import type { Reward } from '@/constants/economy';
+import { useEconomyStore } from '@/game/economy/store';
+import { adsEnabled, showRewarded } from '@/services/ads';
 
 // Exported straight from Figma (node 1:1769) with the "YOU LOST..." lettering
 // already baked into the art -- see the project memory on exporting banners
@@ -35,6 +38,9 @@ export function DefeatOverlay({
   reward: Reward;
   onContinue: () => void;
 }) {
+  const grant = useEconomyStore((s) => s.grant);
+  const [doubled, setDoubled] = useState(false);
+
   return (
     <GamePressable style={styles.root} onPress={onContinue}>
       <View style={styles.backdrop} />
@@ -46,14 +52,20 @@ export function DefeatOverlay({
 
       <RewardRow reward={reward} />
 
-      <GamePressable
-        style={styles.adButton}
-        onPress={() => {
-          // TODO(ads): watch a rewarded ad, then grant this same `reward` a second time.
-        }}>
-        <Image source={AD_ICON} style={{ width: 22, height: 22 }} contentFit="contain" />
-        <GameText style={styles.adLabel}>Double reward</GameText>
-      </GamePressable>
+      {adsEnabled() && !doubled && (
+        <GamePressable
+          style={styles.adButton}
+          onPress={async () => {
+            if (doubled) return;
+            if (await showRewarded('defeat_double')) {
+              grant(reward);
+              setDoubled(true);
+            }
+          }}>
+          <Image source={AD_ICON} style={{ width: 22, height: 22 }} contentFit="contain" />
+          <GameText style={styles.adLabel}>Double reward</GameText>
+        </GamePressable>
+      )}
 
       <GameText style={styles.tapHint}>Tap to continue</GameText>
     </GamePressable>

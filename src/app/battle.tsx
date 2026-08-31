@@ -26,6 +26,7 @@ import { useGameClock } from '@/game/clock';
 import { usePlinkoInterlude } from '@/game/plinko/use-plinko-interlude';
 import { usePlinkoWorld } from '@/game/plinko/world';
 import { useDesignScale } from '@/hooks/use-design-scale';
+import { reportEvent } from '@/services/analytics';
 
 /** How far the solid-color panel below the canvas rides up over it (Figma node 1:1182: canvas ends at 484, the panel starts at 454). */
 const JOURNEY_OVERLAP = 30;
@@ -80,8 +81,16 @@ export default function BattleScreen() {
   // Start every visit to this screen from a clean run.
   useEffect(() => {
     reset();
+    reportEvent('game', { action: 'start' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately once, on mount only
   }, []);
+
+  // Fires once as the run resolves -- `phase` only reaches each terminal
+  // value once per visit (`reset` on mount clears it back to 'intro').
+  useEffect(() => {
+    if (phase === 'victory') reportEvent('game', { action: 'win' });
+    else if (phase === 'defeat') reportEvent('game', { action: 'loss' });
+  }, [phase]);
 
   useEffect(() => {
     // 'plinko' is deliberately absent: the shared clock must keep running so

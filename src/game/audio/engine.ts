@@ -31,6 +31,8 @@ let musicPlayer: AudioPlayer | null = null;
  * exists so that race can't drop the request and leave the theme silent for the rest of the session. */
 let musicStarted = false;
 let appActive = true;
+/** True while a rewarded video is on screen -- see `pauseMusicForAd`. */
+let adPlaying = false;
 let wheelFadeHandle: ReturnType<typeof setInterval> | null = null;
 
 const WHEEL_FADE_MS = 150;
@@ -187,10 +189,35 @@ export function setMusicVolume(volume: number): void {
   if (!musicPlayer) return;
   try {
     musicPlayer.volume = musicVolume;
-    if (musicStarted && appActive) {
+    if (musicStarted && appActive && !adPlaying) {
       if (musicVolume <= 0) musicPlayer.pause();
       else musicPlayer.play();
     }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Silences the theme for the duration of a rewarded video -- the ad brings
+ * its own audio, and the two over each other is just noise. Always paired
+ * with `resumeMusicAfterAd`.
+ */
+export function pauseMusicForAd(): void {
+  adPlaying = true;
+  try {
+    musicPlayer?.pause();
+  } catch {
+    // ignore
+  }
+}
+
+/** Resumes the theme once the ad is gone (unless it's muted or backgrounded). */
+export function resumeMusicAfterAd(): void {
+  adPlaying = false;
+  if (!musicPlayer) return;
+  try {
+    if (musicStarted && appActive && musicVolume > 0) musicPlayer.play();
   } catch {
     // ignore
   }

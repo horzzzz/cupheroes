@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BuyButton } from '@/components/draft/buy-button';
@@ -9,6 +10,7 @@ import { Fonts } from '@/constants/fonts';
 import { BattleFrame } from '@/constants/battle';
 import { DRAFT_REFRESH_COST, canAfford, useBattleStore } from '@/game/battle/store';
 import type { GameClock } from '@/game/clock';
+import { adsEnabled, showRewarded } from '@/services/ads';
 
 const PILL_ORANGE = require('@/assets/images/ui/button-pill.webp');
 const PILL_BLUE = require('@/assets/images/shop/button-pill-blue.webp');
@@ -28,14 +30,27 @@ const CARD_W = 110;
  * Each card + its buttons is one `alignItems:'center'` column so the pill
  * always sits centred under the card, whatever the device scale.
  *
- * `GET ALL` and the per-card `ad` button are drawn per the design but inert
- * until an ad SDK exists -- see the TODOs.
+ * `GET ALL` and the per-card `ad` button watch a rewarded video
+ * (`services/ads.ts`) and then take the card(s) for free; both render only
+ * once a real Start.io App ID is configured (`adsEnabled()`).
  */
 export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: number }) {
   const offers = useBattleStore((s) => s.offers);
   const balls = useBattleStore((s) => s.balls);
   const buySkill = useBattleStore((s) => s.buySkill);
+  const claimAllOffers = useBattleStore((s) => s.claimAllOffers);
   const refreshOffers = useBattleStore((s) => s.refreshOffers);
+  const [adBusy, setAdBusy] = useState(false);
+
+  const watchAdThen = async (source: string, grant: () => void) => {
+    if (adBusy) return;
+    setAdBusy(true);
+    try {
+      if (await showRewarded(source)) grant();
+    } finally {
+      setAdBusy(false);
+    }
+  };
 
   // Still mounted (phase === 'draft') during the short close delay after a buy,
   // but with `offers` cleared -- keep the dim scrim, drop the cards.
@@ -98,15 +113,15 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
                     }}
                   />
 
-                  {!affordable && (
+                  {!affordable && adsEnabled() && (
                     <>
                       <View style={{ height: 10 * scale }} />
                       <BuyButton
                         variant="ad"
                         scale={scale}
-                        onPress={() => {
-                          // TODO(ads): watch a rewarded ad, then `buySkill(i, clock.time.value)` for free.
-                        }}
+                        onPress={() =>
+                          watchAdThen('draft_card', () => buySkill(i, clock.time.value, true))
+                        }
                       />
                     </>
                   )}
@@ -114,6 +129,7 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
               );
             })}
 
+            {adsEnabled() && (
             <GamePressable
               style={{
                 position: 'absolute',
@@ -122,9 +138,9 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
                 width: 190 * scale,
                 height: 70 * scale,
               }}
-              onPress={() => {
-                // TODO(ads): watch a rewarded ad, then take all three offers for free.
-              }}>
+              onPress={() =>
+                watchAdThen('draft_get_all', () => claimAllOffers(clock.time.value))
+              }>
               <Image source={PILL_ORANGE} style={StyleSheet.absoluteFill} contentFit="fill" />
               <View
                 style={{
@@ -146,12 +162,13 @@ export function SkillDraftOverlay({ clock, scale }: { clock: GameClock; scale: n
                 </GameText>
               </View>
             </GamePressable>
+            )}
 
             <GamePressable
               style={{
                 position: 'absolute',
                 left: (195 - 95) * scale,
-                top: 683 * scale,
+                top: (adsEnabled() ? 683 : 583) * scale,
                 width: 190 * scale,
                 height: 70 * scale,
                 opacity: canRefresh ? 1 : 0.45,

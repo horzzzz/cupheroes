@@ -8,11 +8,21 @@ import { GemPackGrid } from '@/components/shop/gem-pack-grid';
 import { ShopHeading } from '@/components/shop/shop-heading';
 import { ScreenColumn } from '@/components/ui/screen-column';
 import { ScreenTopBar } from '@/components/ui/screen-top-bar';
-import { COINS_PACKS, GEM_PACKS } from '@/constants/economy';
+import { COINS_PACKS, FREE_GEMS_AD_REWARD, GEM_PACKS } from '@/constants/economy';
 import { useEconomyStore } from '@/game/economy/store';
+import { adsEnabled, showRewarded } from '@/services/ads';
 
 const HEAD_DIAMONDS = require('@/assets/images/shop/head-diamonds.webp');
 const HEAD_COINS = require('@/assets/images/shop/head-coins.webp');
+
+/**
+ * The whole diamonds section (heading + real-money gem packs + the
+ * rewarded-ad "free gems" button) is hidden until real-money IAP is wired
+ * up — there's no store SDK yet, so none of it can transact. Flip to `true`
+ * once IAP lands to bring the block (and the ad button, still `adsEnabled()`
+ * gated) back.
+ */
+const SHOW_GEM_SHOP = false;
 
 // Gaps between the sections, straight off the Figma frame (node 1:144).
 const TOP_BAR_GAP = 50;
@@ -28,9 +38,8 @@ const CARDS_GAP = 10;
  * `ScreenColumn`; the content scrolls because it is taller than the frame
  * (the design already cuts the coin cards off at the bottom).
  *
- * Coin packs spend real wallet gems and grant coins on the spot. Gem packs
- * are real-money IAP with no store SDK yet — `TODO(iap)`. The free-gems
- * button is a rewarded ad — `TODO(ads)`.
+ * Coin packs spend real wallet gems and grant coins on the spot. The gem
+ * shop above them is gated by `SHOW_GEM_SHOP` (see above).
  */
 export default function ShopScreen() {
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -50,22 +59,31 @@ export default function ShopScreen() {
             paddingTop: TOP_BAR_GAP,
             paddingBottom: 24,
           }}>
-          <ShopHeading source={HEAD_DIAMONDS} />
-          <GemPackGrid
-            packs={GEM_PACKS}
-            style={{ marginTop: AFTER_DIAMONDS_HEAD }}
-            onSelect={() => {
-              // TODO(iap): real-money purchase, no store SDK wired up yet.
-            }}
-          />
-          <FreeGemsButton
-            style={{ marginTop: AFTER_GRID }}
-            onPress={() => {
-              // TODO(ads): watch a rewarded ad, then grant a small gem bundle.
-            }}
-          />
+          {SHOW_GEM_SHOP && (
+            <>
+              <ShopHeading source={HEAD_DIAMONDS} />
+              <GemPackGrid
+                packs={GEM_PACKS}
+                style={{ marginTop: AFTER_DIAMONDS_HEAD }}
+                onSelect={() => {
+                  // TODO(iap): real-money purchase, no store SDK wired up yet.
+                }}
+              />
+              {adsEnabled() && (
+                <FreeGemsButton
+                  style={{ marginTop: AFTER_GRID }}
+                  onPress={async () => {
+                    if (await showRewarded('shop_free_gems')) grant(FREE_GEMS_AD_REWARD);
+                  }}
+                />
+              )}
+            </>
+          )}
 
-          <ShopHeading source={HEAD_COINS} style={{ marginTop: AFTER_FREE_BUTTON }} />
+          <ShopHeading
+            source={HEAD_COINS}
+            style={{ marginTop: SHOW_GEM_SHOP ? AFTER_FREE_BUTTON : 0 }}
+          />
           <View style={{ flexDirection: 'row', gap: CARDS_GAP, marginTop: AFTER_COINS_HEAD }}>
             {COINS_PACKS.map((pack) => (
               <CoinsCard

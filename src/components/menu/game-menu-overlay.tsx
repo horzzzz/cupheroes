@@ -8,6 +8,7 @@ import { VolumeSlider } from '@/components/menu/volume-slider';
 import { GamePressable } from '@/components/ui/game-pressable';
 import { GameText } from '@/components/ui/game-text';
 import { Fonts } from '@/constants/fonts';
+import { openPrivacy, openTerms } from '@/constants/links';
 import { Colors, MainScreen } from '@/constants/theme';
 import { useAudioSettingsStore } from '@/game/audio/store';
 
@@ -76,12 +77,16 @@ export function GameMenuOverlay({ visible, onClose, title, notice, footer }: Gam
               <SettingRow label="SOUND" value={sfxVolume} onChange={setSfxVolume} />
 
               <View style={styles.links}>
-                <GameText gradient style={styles.link}>
-                  PRIVACY POLICY
-                </GameText>
-                <GameText gradient style={styles.link}>
-                  TERMS OF USE
-                </GameText>
+                <GamePressable onPress={openPrivacy}>
+                  <GameText gradient style={styles.link}>
+                    PRIVACY POLICY
+                  </GameText>
+                </GamePressable>
+                <GamePressable onPress={openTerms}>
+                  <GameText gradient style={styles.link}>
+                    TERMS OF USE
+                  </GameText>
+                </GamePressable>
               </View>
             </View>
 

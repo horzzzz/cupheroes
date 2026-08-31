@@ -8,7 +8,10 @@
     "scheme": "cupheroes",
     "userInterfaceStyle": "light",
     "ios": {
-      "bundleIdentifier": "com.cupheroes.braveknight"
+      "bundleIdentifier": "com.cupheroes.braveknight",
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you."
+      }
     },
     "android": {
       "package": "com.cupheroes.braveknight",
@@ -16,7 +19,14 @@
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.VIBRATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "output": "static",
@@ -40,6 +50,7 @@
           }
         }
       ],
+      "./plugins/withStartAppSdkFix.js",
       [
         "expo-build-properties",
         {
@@ -53,6 +64,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "startIo": {
+        "androidAppId": "",
+        "iosAppId": ""
+      }
     }
   }
 }

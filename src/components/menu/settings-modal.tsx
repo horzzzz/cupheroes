@@ -1,8 +1,10 @@
 import { Image } from 'expo-image';
+import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { GameMenuOverlay } from '@/components/menu/game-menu-overlay';
 import { GamePressable } from '@/components/ui/game-pressable';
+import { reportEvent } from '@/services/analytics';
 
 const CONTINUE_BUTTON = require('@/assets/images/menu/button-continue.webp');
 
@@ -13,6 +15,10 @@ type SettingsModalProps = {
 
 /** Settings screen — Figma node 1:2187. */
 export function SettingsModal({ visible, onClose }: SettingsModalProps) {
+  useEffect(() => {
+    if (visible) reportEvent('settings', { action: 'open' });
+  }, [visible]);
+
   return (
     <GameMenuOverlay
       visible={visible}

@@ -19,10 +19,17 @@ import type { PlinkoWorld } from '@/game/plinko/world';
  * bands are sharp-cornered rectangles so abutting gates form one seamless
  * strip (rounded corners left dark notches at every seam).
  *
- * The boost pad is drawn as a flat blue panel spanning its whole collider
- * width, with the chevron art (`pad-boost.webp`, native 146x50) laid on top at
- * its true aspect ratio and centred -- stretching the webp across a wide pad
- * smeared the icon. The panel dims once the pad is spent (`boostState >= 2`).
+ * The boost pad is a flat blue panel spanning its whole collider width, with
+ * the chevron art (`pad-boost.webp`, native 146x50, opaque #00A5FF ground) laid
+ * on top at its true aspect ratio and centred -- stretching the webp across a
+ * wide pad smeared the icon. The panel dims once the pad is spent
+ * (`boostState >= 2`).
+ *
+ * The backing panel is drawn as two side pieces that meet under the art, never
+ * as one full-width rect: the art is opaque, so a full-width rect would stack a
+ * second opaque blue fill under it, and once the Group is dimmed that
+ * double-covered centre reads as a brighter band inside a fainter frame
+ * (the "uneven transparency" bug).
  */
 /** Native aspect ratio of `pad-boost.webp` (146 x 50). */
 const PAD_ART_ASPECT = 146 / 50;
@@ -65,19 +72,22 @@ export function PlinkoBoard({
         (() => {
           const pw = boostPad.x1 - boostPad.x0;
           const ph = boostPad.y1 - boostPad.y0;
-          const artW = Math.min(pw, ph * PAD_ART_ASPECT);
+          const artW = pad ? Math.min(pw, ph * PAD_ART_ASPECT) : 0;
+          const artX = boostPad.x0 + (pw - artW) / 2;
+          const midX = boostPad.x0 + pw / 2;
           return (
             <Group opacity={boostOpacity}>
-              <RoundedRect x={boostPad.x0} y={boostPad.y0} width={pw} height={ph} r={4} color={PLINKO_COLORS.boostPad} />
-              {pad && (
-                <Image
-                  image={pad}
-                  x={boostPad.x0 + (pw - artW) / 2}
-                  y={boostPad.y0}
-                  width={artW}
-                  height={ph}
-                  fit="fill"
-                />
+              {pad ? (
+                <>
+                  {/* Two halves meeting at midX, both hidden under the art at
+                      the seam -- so the panel is exactly one fill thick
+                      everywhere. */}
+                  <RoundedRect x={boostPad.x0} y={boostPad.y0} width={midX - boostPad.x0} height={ph} r={4} color={PLINKO_COLORS.boostPad} />
+                  <RoundedRect x={midX} y={boostPad.y0} width={boostPad.x1 - midX} height={ph} r={4} color={PLINKO_COLORS.boostPad} />
+                  <Image image={pad} x={artX} y={boostPad.y0} width={artW} height={ph} fit="fill" />
+                </>
+              ) : (
+                <RoundedRect x={boostPad.x0} y={boostPad.y0} width={pw} height={ph} r={4} color={PLINKO_COLORS.boostPad} />
               )}
             </Group>
           );

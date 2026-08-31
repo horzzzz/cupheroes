@@ -114,8 +114,10 @@ type BattleState = {
   startNextPack: (gameTime: number) => void;
   /** Ends the pachinko interlude and opens the skill draft with `collected` balls banked. No-op outside 'plinko'. */
   enterDraft: (collected: number) => void;
-  /** Buys card `index`, applies it, and releases combat. No-op outside 'draft' or if unaffordable. */
-  buySkill: (index: number, gameTime: number) => void;
+  /** Buys card `index`, applies it, and releases combat. No-op outside 'draft' or (unless `free`) if unaffordable. `free` is the rewarded-ad path -- the ad has already been watched. */
+  buySkill: (index: number, gameTime: number, free?: boolean) => void;
+  /** Takes every current offer at once for free (rewarded-ad "GET ALL"), then releases combat. No-op outside 'draft'. */
+  claimAllOffers: (gameTime: number) => void;
   /** Re-rolls the three cards for `DRAFT_REFRESH_COST` balls. No-op outside 'draft' or if unaffordable. */
   refreshOffers: () => void;
   /** Restores full HP and keeps fighting the current pack. No-op outside 'defeat'. */
@@ -339,69 +341,18 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     set({ phase: 'draft', balls, wavePot: 0, offers });
   },
 
-  buySkill: (index, gameTime) => {
+  buySkill: (index, gameTime, free = false) => {
     const state = get();
     if (state.phase !== 'draft' || !state.offers) return;
     const offer = state.offers[index];
-    if (!offer || offer.price > state.balls) return;
+    if (!offer || (!free && offer.price > state.balls)) return;
+    applyDraftPurchase(set, get, state, [offer], gameTime, free ? 0 : offer.price);
+  },
 
-    const ownedSkills: OwnedSkills = { ...state.ownedSkills, [offer.id]: offer.level };
-    const stats = heroStatsFrom(state.heroBase, ownedSkills);
-    // A `maxHealth` buy raises the ceiling; lift current HP by the same delta
-    // so "+100% max health" reads as a gain, not a halved bar.
-    const healthDelta = Math.max(0, stats.heroMaxHealth - state.heroMaxHealth);
-
-    let heroHealth = Math.min(stats.heroMaxHealth, state.heroHealth + healthDelta);
-    let enemies = state.enemies;
-    let wavePot = state.wavePot;
-    let round = state.round;
-
-    if (SKILLS[offer.id].kind === 'instant') {
-      const value = skillValue(offer.id, offer.level);
-      if (offer.id === 'heal') {
-        // `value` is a percentage of max health now, not a flat HP amount --
-        // see the balance plan (flat heals became meaningless once the wave
-        // table scales enemies, and the hero's own health, off player level).
-        const amount = Math.min(Math.round(stats.heroMaxHealth * (value / 100)), stats.heroMaxHealth - heroHealth);
-        if (amount > 0) {
-          heroHealth += amount;
-          round = syntheticRound(round, gameTime, [
-            {
-              kind: 'heal',
-              targetId: 'hero',
-              amount,
-              targetHealthAfter: heroHealth,
-              targetX: HERO_POS.x,
-              startAt: gameTime,
-            },
-          ]);
-        }
-      } else if (offer.id === 'bomb') {
-        const blast = resolveBomb(stats.heroAttack, value, enemies, gameTime);
-        enemies = blast.enemiesAfter;
-        wavePot += blast.ballsGained;
-        round = syntheticRound(round, gameTime, blast.beats);
-      }
-    }
-
-    set({
-      ownedSkills,
-      ...stats,
-      heroHealth,
-      enemies,
-      wavePot,
-      round,
-      balls: state.balls - offer.price,
-      // Clear the cards but stay in 'draft' for a short beat so the overlay
-      // dismisses before the hero starts swinging -- feedback that combat
-      // resumed the instant a card was tapped.
-      offers: null,
-    });
-    setTimeout(() => {
-      // If a bomb wiped the pack, the first (empty) round resolves straight to
-      // 'clear' and the death fade plays over the pause.
-      if (get().phase === 'draft') set({ phase: 'active' });
-    }, DRAFT_EXIT_DELAY_MS);
+  claimAllOffers: (gameTime) => {
+    const state = get();
+    if (state.phase !== 'draft' || !state.offers || state.offers.length === 0) return;
+    applyDraftPurchase(set, get, state, state.offers, gameTime, 0);
   },
 
   refreshOffers: () => {
@@ -422,6 +373,80 @@ export const useBattleStore = create<BattleState>((set, get) => ({
 
   reset: () => set({ ...freshState() }),
 }));
+
+/**
+ * Folds one or more draft offers into the run and releases combat -- the
+ * shared body of `buySkill` (one card) and `claimAllOffers` (the rewarded-ad
+ * "GET ALL"). `ballsSpent` is deducted from the stash (0 for the ad paths).
+ *
+ * Stats are recomputed once from the fully-merged skill set, then each
+ * `instant` offer's effect (heal / bomb) is applied in order against those
+ * final stats.
+ */
+function applyDraftPurchase(
+  set: (partial: Partial<BattleState>) => void,
+  get: () => BattleState,
+  state: BattleState,
+  offers: readonly SkillOffer[],
+  gameTime: number,
+  ballsSpent: number,
+) {
+  const ownedSkills: OwnedSkills = { ...state.ownedSkills };
+  for (const offer of offers) ownedSkills[offer.id] = offer.level;
+
+  const stats = heroStatsFrom(state.heroBase, ownedSkills);
+  const healthDelta = Math.max(0, stats.heroMaxHealth - state.heroMaxHealth);
+
+  let heroHealth = Math.min(stats.heroMaxHealth, state.heroHealth + healthDelta);
+  let enemies = state.enemies;
+  let wavePot = state.wavePot;
+  let round = state.round;
+
+  for (const offer of offers) {
+    if (SKILLS[offer.id].kind !== 'instant') continue;
+    const value = skillValue(offer.id, offer.level);
+    if (offer.id === 'heal') {
+      const amount = Math.min(
+        Math.round(stats.heroMaxHealth * (value / 100)),
+        stats.heroMaxHealth - heroHealth,
+      );
+      if (amount > 0) {
+        heroHealth += amount;
+        round = syntheticRound(round, gameTime, [
+          {
+            kind: 'heal',
+            targetId: 'hero',
+            amount,
+            targetHealthAfter: heroHealth,
+            targetX: HERO_POS.x,
+            startAt: gameTime,
+          },
+        ]);
+      }
+    } else if (offer.id === 'bomb') {
+      const blast = resolveBomb(stats.heroAttack, value, enemies, gameTime);
+      enemies = blast.enemiesAfter;
+      wavePot += blast.ballsGained;
+      round = syntheticRound(round, gameTime, blast.beats);
+    }
+  }
+
+  set({
+    ownedSkills,
+    ...stats,
+    heroHealth,
+    enemies,
+    wavePot,
+    round,
+    balls: state.balls - ballsSpent,
+    // Clear the cards but stay in 'draft' for a short beat so the overlay
+    // dismisses before the hero starts swinging.
+    offers: null,
+  });
+  setTimeout(() => {
+    if (get().phase === 'draft') set({ phase: 'active' });
+  }, DRAFT_EXIT_DELAY_MS);
+}
 
 function syntheticRound(prev: Round | null, gameTime: number, beats: Beat[]): Round {
   // Duration is never read for a synthetic round -- the scheduler isn't
