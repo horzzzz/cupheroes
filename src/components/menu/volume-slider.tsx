@@ -3,7 +3,6 @@ import { useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { playSfx } from '@/game/audio/engine';
 
 const TRACK_HEIGHT = 8;
 const THUMB_SIZE = 14;
@@ -48,21 +47,23 @@ export function VolumeSlider({ value, onChange }: VolumeSliderProps) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
-        startValueRef.current = valueRef.current;
-        playSfx('ui-click');
+      // A plain tap counts too: jump the thumb to wherever the finger landed
+      // (`locationX` is relative to this hit area), then treat any drag that
+      // follows as a delta from that new spot.
+      onPanResponderGrant: (evt) => {
+        const w = widthRef.current;
+        if (w) {
+          const tapped = snapToEdge(Math.min(1, Math.max(0, evt.nativeEvent.locationX / w)));
+          startValueRef.current = tapped;
+          onChange(tapped);
+        } else {
+          startValueRef.current = valueRef.current;
+        }
       },
       onPanResponderMove: (_evt, gestureState) => {
         if (!widthRef.current) return;
         const raw = startValueRef.current + gestureState.dx / widthRef.current;
         onChange(snapToEdge(Math.min(1, Math.max(0, raw))));
-      },
-      // Grab and release only -- a tick per move event would machine-gun.
-      // The release one matters most on the SOUND slider: it plays at the
-      // level just chosen, so it doubles as an audition of the new setting
-      // (and its absence is the confirmation that you dragged to zero).
-      onPanResponderRelease: () => {
-        playSfx('ui-click');
       },
     })
   ).current;
@@ -70,6 +71,11 @@ export function VolumeSlider({ value, onChange }: VolumeSliderProps) {
   return (
     <View
       style={styles.hitArea}
+      // Touches must always land on this view (never the thumb/track children),
+      // so `locationX` in `onPanResponderGrant` stays relative to the hit area.
+      // Grabbing the thumb itself would otherwise report an x of 0..THUMB_SIZE
+      // and snap the value to zero.
+      pointerEvents="box-only"
       onLayout={(e) => {
         widthRef.current = e.nativeEvent.layout.width;
         setWidth(e.nativeEvent.layout.width);

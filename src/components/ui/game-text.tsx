@@ -1,6 +1,6 @@
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View, type TextProps, type TextStyle } from 'react-native';
+import { StyleSheet, Text, View, type TextProps, type TextStyle, type ViewStyle } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
@@ -23,6 +23,54 @@ type GameTextProps = TextProps & {
   /** Outline color. Defaults to solid black. */
   outlineColor?: string;
 };
+
+// Layout/box props are hoisted onto the wrapper <View> so it stands exactly
+// where a bare <Text> would have; the glyph copies inside it are laid out
+// plainly (relative flow) so they always line up with each other.
+const BOX_KEYS = [
+  'position',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'start',
+  'end',
+  'margin',
+  'marginTop',
+  'marginBottom',
+  'marginLeft',
+  'marginRight',
+  'marginHorizontal',
+  'marginVertical',
+  'marginStart',
+  'marginEnd',
+  'width',
+  'height',
+  'minWidth',
+  'maxWidth',
+  'minHeight',
+  'maxHeight',
+  'alignSelf',
+  'flex',
+  'flexGrow',
+  'flexShrink',
+  'flexBasis',
+  'zIndex',
+  'transform',
+  'opacity',
+] as const;
+
+function splitStyle(flat: TextStyle | undefined): { box: ViewStyle; text: TextStyle } {
+  const box: Record<string, unknown> = {};
+  const text: Record<string, unknown> = { ...(flat ?? {}) };
+  for (const key of BOX_KEYS) {
+    if (key in text) {
+      box[key] = text[key];
+      delete text[key];
+    }
+  }
+  return { box: box as ViewStyle, text: text as TextStyle };
+}
 
 /**
  * Text primitive shared across the game: the flat black "comic outline" from the
@@ -47,30 +95,26 @@ export function GameText({
   const hasOutline = outline && strokeWidth > 0;
 
   if (gradient) {
-    // MaskedView sizes itself to its (non-mask) children, so a hidden copy of
-    // the text forces the gradient to the right dimensions. The outline copies
-    // sit underneath to reproduce the stroke the mask itself can't carry.
+    const { box, text } = splitStyle(flattened);
+    // A hidden in-flow copy gives the wrapper the text's exact size; the
+    // MaskedView (and the outline copies) then fill that box.
     return (
-      <View>
+      <View style={[styles.wrap, box]} pointerEvents="box-none">
         {hasOutline && (
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <OutlineCopies
-              textStyle={flattened}
-              width={strokeWidth}
-              color={outlineColor}
-              textProps={rest}>
+          <View style={styles.fill} pointerEvents="none">
+            <OutlineCopies textStyle={text} width={strokeWidth} color={outlineColor}>
               {children}
             </OutlineCopies>
           </View>
         )}
         <MaskedView
-          style={StyleSheet.absoluteFill}
+          style={styles.fill}
           maskElement={
-            <Text style={flattened} {...rest}>
+            <Text style={text} {...rest}>
               {children}
             </Text>
           }>
-          <Text style={[flattened, styles.hidden]} {...rest}>
+          <Text style={[text, styles.hidden]} {...rest}>
             {children}
           </Text>
           <LinearGradient
@@ -81,8 +125,7 @@ export function GameText({
             style={StyleSheet.absoluteFill}
           />
         </MaskedView>
-        {/* Invisible in-flow copy so the wrapping View gets the text's size. */}
-        <Text style={[flattened, styles.hidden]} {...rest}>
+        <Text style={[text, styles.hidden]} {...rest}>
           {children}
         </Text>
       </View>
@@ -97,16 +140,13 @@ export function GameText({
     );
   }
 
+  const { box, text } = splitStyle(flattened);
   return (
-    <View style={styles.wrap} pointerEvents="box-none">
-      <OutlineCopies
-        textStyle={flattened}
-        width={strokeWidth}
-        color={outlineColor}
-        textProps={rest}>
+    <View style={[styles.wrap, box]} pointerEvents="box-none">
+      <OutlineCopies textStyle={text} width={strokeWidth} color={outlineColor}>
         {children}
       </OutlineCopies>
-      <Text style={flattened} {...rest}>
+      <Text style={text} {...rest}>
         {children}
       </Text>
     </View>
@@ -115,11 +155,17 @@ export function GameText({
 
 const styles = StyleSheet.create({
   wrap: {
-    // No `alignSelf` / width / flex override here: the wrapper must behave like
-    // the bare <Text> it replaces, inheriting the parent's alignment so text
-    // centered by a parent's `alignItems: 'center'` (button labels) or by its
-    // own `textAlign` stays put.
+    // Positioned so the absolute outline copies anchor to it; otherwise it
+    // behaves like the bare <Text> it replaces and inherits the parent's
+    // alignment (button labels centered by `alignItems: 'center'`, etc.).
     position: 'relative',
+  },
+  fill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   hidden: {
     opacity: 0,
