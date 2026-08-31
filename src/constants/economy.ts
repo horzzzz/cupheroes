@@ -18,10 +18,10 @@ export type Reward = {
  * not summed per wave, so it can never be more than the fixed fraction of a
  * level the design calls for (see that function's doc comment for why).
  */
-export const WAVE_CLEAR_REWARD: Reward = { coins: 25 };
+export const WAVE_CLEAR_REWARD: Reward = { coins: 15 };
 
 /** One-time bonus for beating the boss (wave 15), at player level 1. Also XP-free, same reasoning as `WAVE_CLEAR_REWARD`. */
-export const VICTORY_BONUS: Reward = { coins: 150, gems: 10 };
+export const VICTORY_BONUS: Reward = { coins: 100, gems: 10 };
 
 /**
  * Same compounding rate as the upgrade ladder's step cost (`GROWTH` in
