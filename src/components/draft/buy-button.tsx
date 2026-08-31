@@ -37,6 +37,10 @@ export function BuyButton({
   return (
     <GamePressable
       onPress={onPress}
+      // An unaffordable buy pill is already a no-op at the caller; saying so
+      // here is what gets it the rejection blip instead of a click that
+      // pretends something happened. The `ad` variant is always live.
+      disabled={variant === 'buy' && !affordable}
       style={{ width: W * scale, height: H * scale }}
       hitSlop={6}>
       <Image source={PILL} style={StyleSheet.absoluteFill} contentFit="fill" />

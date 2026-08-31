@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable } from 'react-native';
 
 import { DailyBonusOverlay } from '@/components/daily/daily-bonus-overlay';
 import { ChapterHeader } from '@/components/main/chapter-header';
@@ -8,7 +7,9 @@ import { FightButton } from '@/components/main/fight-button';
 import { HeroShowcase } from '@/components/main/hero-showcase';
 import { TopBar } from '@/components/main/top-bar';
 import { SettingsModal } from '@/components/menu/settings-modal';
+import { GamePressable } from '@/components/ui/game-pressable';
 import { ScreenColumn } from '@/components/ui/screen-column';
+import { playSfx } from '@/game/audio/engine';
 import { useEconomyStore } from '@/game/economy/store';
 
 /**
@@ -31,10 +32,23 @@ export default function HomeScreen() {
           onOpenDaily={() => setDailyVisible(true)}
         />
         {/* DEV ONLY: long-press the chapter title to jump ahead a chapter
-            without winning 15 waves. Remove this Pressable wrapper to strip. */}
-        <Pressable onLongPress={__DEV__ ? advanceChapter : undefined} delayLongPress={600}>
+            without winning 15 waves. Remove this wrapper to strip.
+            `silent` on purpose: a plain tap on the header isn't an action in
+            a shipped build, so it must not click as though it were -- only
+            the dev long-press that actually does something makes a sound. */}
+        <GamePressable
+          silent
+          onLongPress={
+            __DEV__
+              ? () => {
+                  advanceChapter();
+                  playSfx('ui-purchase');
+                }
+              : undefined
+          }
+          delayLongPress={600}>
           <ChapterHeader chapter={chapter} />
-        </Pressable>
+        </GamePressable>
         <HeroShowcase chapter={chapter} />
         <FightButton onPress={() => router.push('/battle')} />
       </ScreenColumn>

@@ -1,38 +1,61 @@
 /**
  * One-shot sound effect registry. `require()` targets have to be spelled out
  * literally (Metro can't do a dynamic `require`) -- see `game/sprites.ts` for
- * the same constraint on images. Each id maps to a fixed-size voice pool: the
- * engine round-robins across those voices so, e.g., the hero's own volley
- * hitting two targets a beat apart doesn't cut its own sound off.
+ * the same constraint on images.
+ *
+ * There are no voice pools any more: `engine.ts` decodes each clip once into
+ * an `AudioBuffer` and spawns a throwaway source node per play, so a sound can
+ * overlap itself as many times as the game asks for.
  */
 
-export type SfxId = 'ui-click' | 'hero-attack' | 'enemy-melee' | 'enemy-ranged' | 'enemy-death' | 'victory' | 'defeat';
+export type SfxId =
+  | 'ui-click'
+  | 'ui-denied'
+  | 'ui-purchase'
+  | 'hero-attack'
+  | 'enemy-melee'
+  | 'enemy-ranged'
+  | 'enemy-death'
+  | 'victory'
+  | 'defeat'
+  | 'plinko-tick'
+  | 'plinko-land'
+  | 'plinko-gate'
+  | 'draft-open';
 
 export const SFX_SOURCES: Record<SfxId, number> = {
   'ui-click': require('@/assets/audio/ui-click.m4a'),
+  'ui-denied': require('@/assets/audio/ui-denied.m4a'),
+  'ui-purchase': require('@/assets/audio/ui-purchase.m4a'),
   'hero-attack': require('@/assets/audio/hero-attack.m4a'),
   'enemy-melee': require('@/assets/audio/enemy-melee.m4a'),
   'enemy-ranged': require('@/assets/audio/enemy-ranged.m4a'),
   'enemy-death': require('@/assets/audio/enemy-death.m4a'),
   victory: require('@/assets/audio/victory.m4a'),
   defeat: require('@/assets/audio/defeat.m4a'),
+  'plinko-tick': require('@/assets/audio/plinko-tick.m4a'),
+  'plinko-land': require('@/assets/audio/plinko-land.m4a'),
+  'plinko-gate': require('@/assets/audio/plinko-gate.m4a'),
+  'draft-open': require('@/assets/audio/draft-open.m4a'),
 };
 
 /**
- * Voices per effect. `hero-attack` and `enemy-death` need more than one --
- * a volley can hit several targets a beat apart (`Timing.beatStagger`,
- * `combat.ts`) and a pack can drop several enemies in the same round -- so
- * the same clip needs to be able to overlap itself. Menu clicks and the
- * once-per-run jingles never overlap themselves, so 1-2 voices is enough.
+ * Per-clip mix trim, applied by `playSfx` on top of the SOUND slider. Only
+ * clips that need pulling down are listed; anything absent plays at 1.
+ *
+ * The source packs are mastered at wildly different levels -- these two are
+ * the hottest one-shots in the set (`ui-purchase` peaks at -0.9 dBFS,
+ * `draft-open` at -4.1) and jumped out of the mix against everything else.
+ * Trimming here rather than re-encoding keeps the assets at full resolution,
+ * so the balance stays adjustable without touching a file.
+ *
+ * A clip that's too *quiet* is the opposite case and doesn't belong here:
+ * `ui-click` shipped at -44 dBFS and was re-encoded normalized instead, since
+ * no amount of graph gain fixes a sample with no signal in it.
  */
-export const SFX_VOICES: Record<SfxId, number> = {
-  'ui-click': 2,
-  'hero-attack': 3,
-  'enemy-melee': 2,
-  'enemy-ranged': 2,
-  'enemy-death': 3,
-  victory: 1,
-  defeat: 1,
+export const SFX_GAIN: Partial<Record<SfxId, number>> = {
+  'ui-purchase': 0.4,
+  'draft-open': 0.6,
 };
 
 export const WHEEL_SPIN_SOURCE: number = require('@/assets/audio/wheel-spin.m4a');

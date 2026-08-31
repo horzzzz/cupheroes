@@ -135,6 +135,7 @@ export function StartScreen({ onStart }: StartScreenProps) {
             <GameText
               numberOfLines={1}
               adjustsFontSizeToFit
+              outline={false}
               style={{
                 fontFamily: Fonts.nunito,
                 fontSize: 24 * s,

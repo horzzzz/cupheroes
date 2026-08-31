@@ -78,6 +78,9 @@ export type PlinkoWorld = {
   collected: SharedValue<number>;
   /** Balls that would have been cloned past the live cap -- flushed to the counter as a visual burst. */
   overflow: SharedValue<number>;
+  /** Monotonic count of multiplier-gate triggers. Purely an output for `use-plinko-sfx`, which
+   * diffs it -- the simulation never reads it back. */
+  gateHits: SharedValue<number>;
 
   rng: SharedValue<number>;
 
@@ -136,6 +139,7 @@ export function usePlinkoWorld(): PlinkoWorld {
 
     collected: useSharedValue<number>(0),
     overflow: useSharedValue<number>(0),
+    gateHits: useSharedValue<number>(0),
 
     rng: useSharedValue<number>(0x9e3779b9),
 
@@ -183,5 +187,6 @@ export function resetPlinkoWorld(world: PlinkoWorld): void {
   world.boostUntil.value = 0;
   world.collected.value = 0;
   world.overflow.value = 0;
+  world.gateHits.value = 0;
   world.aimLocked.value = 0;
 }

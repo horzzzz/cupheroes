@@ -1,28 +1,62 @@
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { Asset } from 'expo-asset';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import {
+  AudioContext,
+  AudioManager,
+  type AudioBuffer,
+  type AudioBufferSourceNode,
+  type GainNode,
+} from 'react-native-audio-api';
 
-import { MUSIC_THEME_SOURCE, SFX_SOURCES, SFX_VOICES, WHEEL_SPIN_SOURCE, type SfxId } from '@/game/audio/sfx';
+import {
+  MUSIC_THEME_SOURCE,
+  SFX_GAIN,
+  SFX_SOURCES,
+  WHEEL_SPIN_SOURCE,
+  type SfxId,
+} from '@/game/audio/sfx';
 
 /**
  * Imperative audio singleton -- not a hook, because sound needs to fire from
  * plain callbacks (button presses), from the battle store, and from
- * `runOnJS` inside a Reanimated worklet (`use-battle-sfx.ts`), none of which
- * can call a hook. Every player is created once, up front, in `initAudio()`;
- * playback is just `seekTo(0)` + `play()` on an already-loaded player, so
- * nothing ever waits on a load the first time a sound is needed.
+ * `runOnJS` inside a Reanimated worklet (`use-battle-sfx.ts` /
+ * `use-plinko-sfx.ts`), none of which can call a hook.
+ *
+ * Two backends on purpose:
+ *
+ * - **Effects** run on `react-native-audio-api` (Web Audio over Oboe /
+ *   AVAudioEngine). Every clip is decoded once into an `AudioBuffer` up
+ *   front; a play is a throwaway `AudioBufferSourceNode` fed from that
+ *   buffer, which is why there are no voice pools any more -- a sound can
+ *   overlap itself without limit and nothing ever cuts its own tail off.
+ *   `expo-audio` was the wrong tool here: it wraps `AVPlayer`/ExoPlayer,
+ *   media players whose first `play()` on a fresh instance carries a
+ *   start-up cost that swallowed the opening shots of a battle whole.
+ *
+ * - **Music** stays on `expo-audio`. The theme is 3.8 minutes; as a decoded
+ *   `AudioBuffer` that would be ~77 MB of PCM resident, where a streaming
+ *   media player costs nothing. All the effects together are 2.1 MB.
  *
  * The whole public surface is a no-op before `initAudio()` resolves and is
  * wrapped in try/catch throughout -- a missing/broken audio device should
  * never take a screen down with it.
  */
 
-type VoicePool = { players: AudioPlayer[]; next: number };
-
 let initialized = false;
 let sfxVolume = 1;
 let musicVolume = 1;
-const pools = new Map<SfxId, VoicePool>();
-let wheelPlayer: AudioPlayer | null = null;
+
+let ctx: AudioContext | null = null;
+let sfxGain: GainNode | null = null;
+const buffers = new Map<SfxId, AudioBuffer>();
+
+let wheelGain: GainNode | null = null;
+let wheelBuffer: AudioBuffer | null = null;
+let wheelSource: AudioBufferSourceNode | null = null;
+/** Context time the wheel's fade-out lands at, so `setSfxVolume` doesn't stomp a fade in flight. */
+let wheelFadeUntil = 0;
+
 let musicPlayer: AudioPlayer | null = null;
 /** Whether `startMusic()` has been called this session -- separate from the player's own `playing`, which
  * also goes false while backgrounded or muted to 0, neither of which should count as "stopped". Set the
@@ -33,33 +67,61 @@ let musicStarted = false;
 let appActive = true;
 /** True while a rewarded video is on screen -- see `pauseMusicForAd`. */
 let adPlaying = false;
-let wheelFadeHandle: ReturnType<typeof setInterval> | null = null;
 
 const WHEEL_FADE_MS = 150;
-const WHEEL_FADE_STEPS = 5;
+
+/**
+ * `decodeAudioData` takes a `require()`'d asset module id directly, but only
+ * on native -- on web the module id means nothing to it, so resolve the id to
+ * the URL Metro published the asset at.
+ */
+function decodeSource(mod: number): number | string {
+  return Platform.OS === 'web' ? Asset.fromModule(mod).uri : mod;
+}
 
 export async function initAudio(): Promise<void> {
   if (initialized) return;
   try {
+    // Two libraries end up touching AVAudioSession, so give them equivalent
+    // settings and it stops mattering which one configured it last:
+    // `playsInSilentMode` <-> category 'playback', and both mix rather than
+    // interrupt. Neither declares a background mode (the audio-api Expo
+    // plugin, which would add one, is deliberately not installed), so the
+    // theme still stops when the app goes away.
     await setAudioModeAsync({
       playsInSilentMode: true,
       shouldPlayInBackground: false,
       interruptionMode: 'mixWithOthers',
     });
-
-    (Object.keys(SFX_SOURCES) as SfxId[]).forEach((id) => {
-      const voices = SFX_VOICES[id] ?? 1;
-      const players = Array.from({ length: voices }, () => {
-        const player = createAudioPlayer(SFX_SOURCES[id]);
-        player.volume = sfxVolume;
-        return player;
-      });
-      pools.set(id, { players, next: 0 });
+    AudioManager.setAudioSessionOptions({
+      iosCategory: 'playback',
+      iosMode: 'default',
+      iosOptions: ['mixWithOthers'],
     });
 
-    wheelPlayer = createAudioPlayer(WHEEL_SPIN_SOURCE);
-    wheelPlayer.loop = false;
-    wheelPlayer.volume = sfxVolume;
+    const context = new AudioContext();
+
+    const gain = context.createGain();
+    gain.gain.value = sfxVolume;
+    gain.connect(context.destination);
+
+    const wheel = context.createGain();
+    wheel.gain.value = sfxVolume;
+    wheel.connect(context.destination);
+
+    const ids = Object.keys(SFX_SOURCES) as SfxId[];
+    const decoded = await Promise.all(
+      ids.map(async (id): Promise<[SfxId, AudioBuffer]> => [
+        id,
+        await context.decodeAudioData(decodeSource(SFX_SOURCES[id])),
+      ]),
+    );
+    decoded.forEach(([id, buffer]) => buffers.set(id, buffer));
+    wheelBuffer = await context.decodeAudioData(decodeSource(WHEEL_SPIN_SOURCE));
+
+    ctx = context;
+    sfxGain = gain;
+    wheelGain = wheel;
 
     musicPlayer = createAudioPlayer(MUSIC_THEME_SOURCE);
     musicPlayer.loop = true;
@@ -82,7 +144,9 @@ function handleAppStateChange(next: AppStateStatus) {
   if (!musicPlayer || !musicStarted) return;
   try {
     if (appActive) {
-      if (musicVolume > 0) musicPlayer.play();
+      // `adPlaying` matters here: a rewarded video that backgrounds the app
+      // would otherwise bring the theme back up underneath the ad on return.
+      if (musicVolume > 0 && !adPlaying) musicPlayer.play();
     } else {
       musicPlayer.pause();
     }
@@ -91,72 +155,99 @@ function handleAppStateChange(next: AppStateStatus) {
   }
 }
 
-export function playSfx(id: SfxId): void {
-  if (!initialized || sfxVolume <= 0) return;
-  const pool = pools.get(id);
-  if (!pool || pool.players.length === 0) return;
-  try {
-    const player = pool.players[pool.next];
-    pool.next = (pool.next + 1) % pool.players.length;
-    player.seekTo(0);
-    player.play();
-  } catch {
-    // ignore
-  }
-}
+export type SfxOptions = {
+  /** 0..1, multiplied into the SOUND slider's own level. Defaults to 1. */
+  gain?: number;
+  /** Playback rate; also shifts pitch. Defaults to 1. Used to give the pachinko rattle some variety. */
+  rate?: number;
+};
 
-export function startWheelLoop(): void {
-  if (!initialized || !wheelPlayer) return;
+export function playSfx(id: SfxId, options?: SfxOptions): void {
+  if (!initialized || sfxVolume <= 0 || !ctx || !sfxGain) return;
+  const buffer = buffers.get(id);
+  if (!buffer) return;
   try {
-    if (wheelFadeHandle) {
-      clearInterval(wheelFadeHandle);
-      wheelFadeHandle = null;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    if (options?.rate !== undefined) source.playbackRate.value = options.rate;
+
+    // The clip's standing mix trim (`SFX_GAIN`) times whatever the caller
+    // asked for -- the pachinko rattle varies its own level per shot.
+    const level = (SFX_GAIN[id] ?? 1) * (options?.gain ?? 1);
+    if (level !== 1) {
+      // Per-shot level needs its own node -- `sfxGain` is shared and carries
+      // the user's SOUND setting for everything.
+      const shot = ctx.createGain();
+      shot.gain.value = level;
+      shot.connect(sfxGain);
+      source.connect(shot);
+    } else {
+      source.connect(sfxGain);
     }
-    // One-shot, not a loop: `wheel-spin.m4a` (~2.5s) is shorter than a spin
-    // (~4.2s), so looping it replayed the rattle a second time mid-spin.
-    wheelPlayer.loop = false;
-    wheelPlayer.volume = sfxVolume;
-    wheelPlayer.seekTo(0);
-    wheelPlayer.play();
+    source.start(ctx.currentTime);
   } catch {
     // ignore
   }
 }
 
-/** Fades the wheel loop out over `WHEEL_FADE_MS` instead of cutting it off mid-cycle, which reads as a
+/**
+ * Kept as `start`/`stopWheelLoop` for the wheel screen's sake, but the clip is
+ * a one-shot: `wheel-spin.m4a` (~2.5s) is shorter than a spin (~4.2s), so
+ * looping it replayed the rattle a second time mid-spin.
+ */
+export function startWheelLoop(): void {
+  if (!initialized || !ctx || !wheelGain || !wheelBuffer) return;
+  try {
+    stopWheelSource(0);
+    const now = ctx.currentTime;
+    wheelFadeUntil = 0;
+    wheelGain.gain.cancelScheduledValues(now);
+    wheelGain.gain.setValueAtTime(sfxVolume, now);
+
+    const source = ctx.createBufferSource();
+    source.buffer = wheelBuffer;
+    source.connect(wheelGain);
+    source.start(now);
+    wheelSource = source;
+  } catch {
+    // ignore
+  }
+}
+
+/** Fades the wheel clip out over `WHEEL_FADE_MS` instead of cutting it off mid-cycle, which reads as a
  * click/pop -- the spin result lands mid-rattle more often than not. */
 export function stopWheelLoop(): void {
-  if (!initialized || !wheelPlayer) return;
-  const player = wheelPlayer;
+  if (!initialized || !ctx || !wheelGain) return;
   try {
-    if (wheelFadeHandle) clearInterval(wheelFadeHandle);
-    const startVolume = player.volume;
-    let step = 0;
-    wheelFadeHandle = setInterval(() => {
-      step += 1;
-      try {
-        if (step >= WHEEL_FADE_STEPS) {
-          player.pause();
-          player.loop = false;
-          player.seekTo(0);
-          player.volume = sfxVolume;
-          if (wheelFadeHandle) clearInterval(wheelFadeHandle);
-          wheelFadeHandle = null;
-        } else {
-          player.volume = Math.max(0, startVolume * (1 - step / WHEEL_FADE_STEPS));
-        }
-      } catch {
-        if (wheelFadeHandle) clearInterval(wheelFadeHandle);
-        wheelFadeHandle = null;
-      }
-    }, WHEEL_FADE_MS / WHEEL_FADE_STEPS);
+    stopWheelSource(WHEEL_FADE_MS / 1000);
   } catch {
     // ignore
   }
+}
+
+function stopWheelSource(fadeSeconds: number): void {
+  if (!ctx || !wheelGain || !wheelSource) return;
+  const source = wheelSource;
+  wheelSource = null;
+  const now = ctx.currentTime;
+  wheelGain.gain.cancelScheduledValues(now);
+  if (fadeSeconds > 0) {
+    wheelGain.gain.setValueAtTime(wheelGain.gain.value, now);
+    wheelGain.gain.linearRampToValueAtTime(0, now + fadeSeconds);
+    wheelFadeUntil = now + fadeSeconds;
+  }
+  source.stop(now + fadeSeconds);
 }
 
 export function startMusic(): void {
   musicStarted = true;
+  // Browsers hand out a suspended context until a user gesture, and this is
+  // called from the start screen's tap -- the one place that's guaranteed.
+  try {
+    void ctx?.resume();
+  } catch {
+    // ignore
+  }
   if (!initialized || !musicPlayer || musicVolume <= 0 || !appActive) return;
   try {
     musicPlayer.loop = true;
@@ -168,21 +259,16 @@ export function startMusic(): void {
 
 export function setSfxVolume(volume: number): void {
   sfxVolume = Math.min(1, Math.max(0, volume));
-  pools.forEach((pool) => {
-    pool.players.forEach((player) => {
-      try {
-        player.volume = sfxVolume;
-      } catch {
-        // ignore
-      }
-    });
-  });
-  if (wheelPlayer && !wheelFadeHandle) {
-    try {
-      wheelPlayer.volume = sfxVolume;
-    } catch {
-      // ignore
+  try {
+    if (sfxGain) sfxGain.gain.value = sfxVolume;
+    // Writing `.value` mid-fade would stomp the scheduled ramp, so leave the
+    // wheel alone until its fade-out has landed.
+    if (wheelGain && ctx && ctx.currentTime >= wheelFadeUntil) {
+      wheelGain.gain.cancelScheduledValues(ctx.currentTime);
+      wheelGain.gain.setValueAtTime(sfxVolume, ctx.currentTime);
     }
+  } catch {
+    // ignore
   }
 }
 

@@ -14,6 +14,7 @@ import {
   rewardForDay,
   weekStartDay,
 } from '@/game/daily/rewards';
+import { playSfx } from '@/game/audio/engine';
 import { getDailyStatus, useDailyStore } from '@/game/daily/store';
 
 const COIN_ICON = require('@/assets/images/main/icon-coin.webp');
@@ -210,7 +211,12 @@ export function DailyBonusOverlay({ visible, onClose }: { visible: boolean; onCl
           <View style={{ alignItems: 'center', marginTop: 26 * s }}>
             {status.phase === 'ready' ? (
               <GamePressable
-                onPress={() => claim(today)}
+                onPress={() => {
+                  // This button only renders while the bonus is claimable,
+                  // so the press always succeeds.
+                  claim(today);
+                  playSfx('ui-purchase');
+                }}
                 style={{ width: 190 * s, height: 70 * s }}>
                 <Image source={CLAIM_PILL} style={StyleSheet.absoluteFill} contentFit="fill" />
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

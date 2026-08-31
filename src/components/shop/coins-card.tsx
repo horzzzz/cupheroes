@@ -106,6 +106,10 @@ export function CoinsCard({ pack, gems, onBuy }: CoinsCardProps) {
 
       <GamePressable
         onPress={onBuy}
+        // `spend()` already refuses when the gems aren't there; marking it
+        // disabled turns a click-that-does-nothing into an audible refusal
+        // (and stops the pill animating as though the purchase went through).
+        disabled={!affordable}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
         style={{

@@ -19,6 +19,7 @@ import {
   type PlinkoLayout,
 } from '@/constants/plinko';
 import { Fonts } from '@/constants/fonts';
+import { playSfx } from '@/game/audio/engine';
 import type { GameClock } from '@/game/clock';
 import { PlinkoBalls } from '@/components/plinko/plinko-balls';
 import { PlinkoBoard } from '@/components/plinko/plinko-board';
@@ -26,6 +27,42 @@ import { PlinkoCups } from '@/components/plinko/plinko-cups';
 import { usePlinkoBallTexture, usePlinkoSprites } from '@/game/plinko/sprites';
 import { usePlinkoStore } from '@/game/plinko/store';
 import type { PlinkoWorld } from '@/game/plinko/world';
+import { OutlineCopies } from '@/components/ui/text-stroke';
+
+import type { StyleProp, TextStyle } from 'react-native';
+import type { ReactNode } from 'react';
+
+/** Overlay label with the flat black outline, matching `GameText`. */
+function StrokedLabel({
+  style,
+  animatedStyle,
+  strokeWidth = 2,
+  children,
+}: {
+  style: StyleProp<TextStyle>;
+  animatedStyle?: unknown;
+  strokeWidth?: number;
+  children: ReactNode;
+}) {
+  const flat = StyleSheet.flatten(style) as TextStyle;
+  const innerText: TextStyle = {
+    ...flat,
+    position: 'relative',
+    left: undefined,
+    right: undefined,
+    top: undefined,
+    bottom: undefined,
+    alignSelf: 'stretch',
+  };
+  return (
+    <Animated.View style={[flat, animatedStyle] as never} pointerEvents="none">
+      <OutlineCopies textStyle={innerText} width={strokeWidth} color="#000000">
+        {children}
+      </OutlineCopies>
+      <Text style={innerText}>{children}</Text>
+    </Animated.View>
+  );
+}
 
 /**
  * The interactive pachinko board -- Figma node 1:1916. The Skia canvas
@@ -73,7 +110,13 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
     .minDistance(0)
     .onBegin((e) => {
       'worklet';
-      if (world.aimLocked.value === 0) world.aimX.value = clampAim(e.x / boardScale);
+      if (world.aimLocked.value === 0) {
+        world.aimX.value = clampAim(e.x / boardScale);
+        // Grabbing the cup is a button press as far as the player is
+        // concerned; the release is voiced by `use-plinko-sfx` off
+        // `aimLocked`, so only the grab needs a cue here.
+        runOnJS(playSfx)('ui-click');
+      }
     })
     .onChange((e) => {
       'worklet';
@@ -136,18 +179,20 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
         const mid = (g.channelMin + g.channelMax) / 2;
         const midY = (g.y0 + g.y1) / 2;
         return (
-          <Text
+          <StrokedLabel
             key={g.id}
+            strokeWidth={Math.max(1.5, Math.round(1.6 * boardScale))}
             style={[
               styles.gateLabel,
               { left: mid * boardScale - 24, top: midY * boardScale - 12, fontSize: 18 * boardScale },
             ]}>
             {`X${g.mult}`}
-          </Text>
+          </StrokedLabel>
         );
       })}
 
-      <Animated.Text
+      <StrokedLabel
+        strokeWidth={Math.max(1.5, Math.round(2 * boardScale))}
         style={[
           styles.cupNumber,
           {
@@ -155,12 +200,13 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
             marginLeft: -30,
             fontSize: 24 * boardScale,
           },
-          topNumStyle,
-        ]}>
+        ]}
+        animatedStyle={topNumStyle}>
         {remaining}
-      </Animated.Text>
+      </StrokedLabel>
 
-      <Text
+      <StrokedLabel
+        strokeWidth={Math.max(1.5, Math.round(2 * boardScale))}
         style={[
           styles.cupNumber,
           {
@@ -170,17 +216,18 @@ export function PlinkoScene({ world, clock, boardScale, layout, wallColor, await
           },
         ]}>
         {collected}
-      </Text>
+      </StrokedLabel>
 
       {awaitingThrow && (
-        <Animated.Text
+        <StrokedLabel
+          strokeWidth={Math.max(1.5, Math.round(1.5 * boardScale))}
           style={[
             styles.hint,
             { top: 232 * boardScale, fontSize: 16 * boardScale },
-            hintStyle,
-          ]}>
+          ]}
+          animatedStyle={hintStyle}>
           AIM, THEN RELEASE
-        </Animated.Text>
+        </StrokedLabel>
       )}
     </View>
   );

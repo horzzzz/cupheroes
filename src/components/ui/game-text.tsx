@@ -4,6 +4,8 @@ import { StyleSheet, Text, View, type TextProps, type TextStyle } from 'react-na
 
 import { Colors } from '@/constants/theme';
 
+import { OutlineCopies, defaultStrokeWidth } from './text-stroke';
+
 type GameTextProps = TextProps & {
   /** Renders the text filled with the brand yellow->orange gradient instead of a flat color. */
   gradient?: boolean;
@@ -14,11 +16,17 @@ type GameTextProps = TextProps & {
   /** Overrides the default left-to-right gradient direction (only used when `gradient` is set). */
   gradientStart?: { x: number; y: number };
   gradientEnd?: { x: number; y: number };
+  /** Set `false` to drop the black outline. Defaults to `true`. */
+  outline?: boolean;
+  /** Outline stroke width in px. Defaults to a value derived from `fontSize`. */
+  outlineWidth?: number;
+  /** Outline color. Defaults to solid black. */
+  outlineColor?: string;
 };
 
 /**
- * Text primitive shared by the loader screens: a hard 2px drop shadow (the
- * flat "comic outline" look from the Figma designs) plus an optional
+ * Text primitive shared across the game: the flat black "comic outline" from the
+ * Figma designs (eight offset copies drawn under the fill) plus an optional
  * gradient fill for headline text.
  */
 export function GameText({
@@ -28,20 +36,33 @@ export function GameText({
   gradientLocations,
   gradientStart,
   gradientEnd,
+  outline = true,
+  outlineWidth,
+  outlineColor = '#000000',
   children,
   ...rest
 }: GameTextProps) {
   const flattened = StyleSheet.flatten(style) as TextStyle | undefined;
+  const strokeWidth = outlineWidth ?? defaultStrokeWidth(flattened?.fontSize as number | undefined);
+  const hasOutline = outline && strokeWidth > 0;
 
   if (gradient) {
     // MaskedView sizes itself to its (non-mask) children, so a hidden copy of
-    // the text forces the gradient to the right dimensions. The shadow copy
-    // sits underneath to reproduce the outline the mask itself can't carry.
+    // the text forces the gradient to the right dimensions. The outline copies
+    // sit underneath to reproduce the stroke the mask itself can't carry.
     return (
       <View>
-        <Text style={[flattened, styles.shadowOnly]} {...rest}>
-          {children}
-        </Text>
+        {hasOutline && (
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <OutlineCopies
+              textStyle={flattened}
+              width={strokeWidth}
+              color={outlineColor}
+              textProps={rest}>
+              {children}
+            </OutlineCopies>
+          </View>
+        )}
         <MaskedView
           style={StyleSheet.absoluteFill}
           maskElement={
@@ -60,28 +81,45 @@ export function GameText({
             style={StyleSheet.absoluteFill}
           />
         </MaskedView>
+        {/* Invisible in-flow copy so the wrapping View gets the text's size. */}
+        <Text style={[flattened, styles.hidden]} {...rest}>
+          {children}
+        </Text>
       </View>
     );
   }
 
+  if (!hasOutline) {
+    return (
+      <Text style={flattened} {...rest}>
+        {children}
+      </Text>
+    );
+  }
+
   return (
-    <Text style={[styles.outline, flattened]} {...rest}>
-      {children}
-    </Text>
+    <View style={styles.wrap} pointerEvents="box-none">
+      <OutlineCopies
+        textStyle={flattened}
+        width={strokeWidth}
+        color={outlineColor}
+        textProps={rest}>
+        {children}
+      </OutlineCopies>
+      <Text style={flattened} {...rest}>
+        {children}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  outline: {
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 0,
-  },
-  shadowOnly: {
-    color: 'transparent',
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 0,
+  wrap: {
+    // No `alignSelf` / width / flex override here: the wrapper must behave like
+    // the bare <Text> it replaces, inheriting the parent's alignment so text
+    // centered by a parent's `alignItems: 'center'` (button labels) or by its
+    // own `textAlign` stays put.
+    position: 'relative',
   },
   hidden: {
     opacity: 0,

@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
+import { playSfx } from '@/game/audio/engine';
 
 const TRACK_HEIGHT = 8;
 const THUMB_SIZE = 14;
@@ -49,11 +50,19 @@ export function VolumeSlider({ value, onChange }: VolumeSliderProps) {
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startValueRef.current = valueRef.current;
+        playSfx('ui-click');
       },
       onPanResponderMove: (_evt, gestureState) => {
         if (!widthRef.current) return;
         const raw = startValueRef.current + gestureState.dx / widthRef.current;
         onChange(snapToEdge(Math.min(1, Math.max(0, raw))));
+      },
+      // Grab and release only -- a tick per move event would machine-gun.
+      // The release one matters most on the SOUND slider: it plays at the
+      // level just chosen, so it doubles as an audition of the new setting
+      // (and its absence is the confirmation that you dragged to zero).
+      onPanResponderRelease: () => {
+        playSfx('ui-click');
       },
     })
   ).current;

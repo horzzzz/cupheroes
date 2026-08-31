@@ -78,12 +78,12 @@ export function GameMenuOverlay({ visible, onClose, title, notice, footer }: Gam
 
               <View style={styles.links}>
                 <GamePressable onPress={openPrivacy}>
-                  <GameText gradient style={styles.link}>
+                  <GameText gradient outline={false} style={styles.link}>
                     PRIVACY POLICY
                   </GameText>
                 </GamePressable>
                 <GamePressable onPress={openTerms}>
-                  <GameText gradient style={styles.link}>
+                  <GameText gradient outline={false} style={styles.link}>
                     TERMS OF USE
                   </GameText>
                 </GamePressable>

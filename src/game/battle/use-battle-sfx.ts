@@ -56,10 +56,27 @@ export function useBattleSfx(clock: GameClock) {
       playPhaseSfx(state.phase);
     });
   }, []);
+
+  // "Skill acquired". `applyDraftPurchase` is the only thing that clears
+  // `offers`, so watching it drop to null catches the buy pill, GET ALL and
+  // both rewarded-ad paths in one place -- and ignores REFRESH, which swaps
+  // one non-null offer set for another. The click on the button itself is
+  // press feedback; this is the confirmation that the skill is yours.
+  useEffect(() => {
+    return useBattleStore.subscribe((state, prevState) => {
+      if (prevState.offers !== null && state.offers === null) playSfx('ui-purchase');
+    });
+  }, []);
 }
 
 function playPhaseSfx(phase: BattlePhase) {
   if (phase === 'victory') playSfx('victory');
+  // The skill draft's own cue. The phase flips only after the pachinko
+  // camera has finished panning back up (`use-plinko-interlude.ts`), so this
+  // lands with the overlay rather than ahead of it -- and when every skill is
+  // already maxed `enterDraft` skips straight to 'active', which is exactly
+  // the case where there should be no sound.
+  if (phase === 'draft') playSfx('draft-open');
   // Fires on 'dying', not 'defeat' -- the hero's own death animation plays
   // first (see `store.ts`'s phase-machine doc comment), and the cue should
   // land with that impact, not with the overlay that appears after it.

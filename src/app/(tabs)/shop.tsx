@@ -9,6 +9,7 @@ import { ShopHeading } from '@/components/shop/shop-heading';
 import { ScreenColumn } from '@/components/ui/screen-column';
 import { ScreenTopBar } from '@/components/ui/screen-top-bar';
 import { COINS_PACKS, FREE_GEMS_AD_REWARD, GEM_PACKS } from '@/constants/economy';
+import { playSfx } from '@/game/audio/engine';
 import { useEconomyStore } from '@/game/economy/store';
 import { adsEnabled, showRewarded } from '@/services/ads';
 
@@ -91,7 +92,10 @@ export default function ShopScreen() {
                 pack={pack}
                 gems={gems}
                 onBuy={() => {
-                  if (spend({ gems: pack.price })) grant({ coins: pack.amount });
+                  if (spend({ gems: pack.price })) {
+                    grant({ coins: pack.amount });
+                    playSfx('ui-purchase');
+                  }
                 }}
               />
             ))}

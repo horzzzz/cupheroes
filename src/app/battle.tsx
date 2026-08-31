@@ -24,6 +24,7 @@ import { useBattleSfx } from '@/game/battle/use-battle-sfx';
 import { displayBalls, useBattleStore, waveProgress } from '@/game/battle/store';
 import { useGameClock } from '@/game/clock';
 import { usePlinkoInterlude } from '@/game/plinko/use-plinko-interlude';
+import { usePlinkoSfx } from '@/game/plinko/use-plinko-sfx';
 import { usePlinkoWorld } from '@/game/plinko/world';
 import { useDesignScale } from '@/hooks/use-design-scale';
 import { reportEvent } from '@/services/analytics';
@@ -61,6 +62,7 @@ export default function BattleScreen() {
   const { sx: scale, s: safeScale, rawS: boardScale, height: deckHeight } = useDesignScale();
 
   const world = usePlinkoWorld();
+  usePlinkoSfx(clock, world);
   const { cameraY, releaseThrow, awaitingThrow, layout: plinkoLayout } = usePlinkoInterlude(clock, world, deckHeight);
   const deckStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -cameraY.value }] }));
 

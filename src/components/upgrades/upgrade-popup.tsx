@@ -148,10 +148,13 @@ export function UpgradePopup({
           </View>
 
           <GamePressable
-            onPress={owned ? undefined : onBuy}
+            onPress={onBuy}
+            // Not affordable is just as much a dead press as already owned --
+            // both should say so out loud rather than click and do nothing.
+            // The price is already drawn red in that state.
+            disabled={owned || !affordable}
             onPressIn={() => setPressed(true)}
             onPressOut={() => setPressed(false)}
-            disabled={owned}
             style={{
               position: 'absolute',
               left: inset((POPUP_WIDTH - BUTTON_WIDTH) / 2),

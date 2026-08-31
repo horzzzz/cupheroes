@@ -156,6 +156,10 @@ export function stepPlinko(world: PlinkoWorld, now: number): void {
       if (!pointInRect(x, y, gate.x0, gate.y0, gate.x1, gate.y1)) continue;
 
       mask[i] |= gate.bit;
+      // Sound only -- see `use-plinko-sfx.ts`. Safe to write here because a
+      // gate latches once per ball; the wall loop above runs orders of
+      // magnitude more often and must stay free of side effects like this.
+      world.gateHits.value += 1;
       for (let c = 1; c < gate.mult; c++) {
         if (world.liveCount.value >= liveCap) {
           world.overflow.value += 1;

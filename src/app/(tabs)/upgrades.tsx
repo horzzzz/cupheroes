@@ -8,6 +8,7 @@ import { ScreenTopBar } from '@/components/ui/screen-top-bar';
 import { LevelProgress } from '@/components/upgrades/level-progress';
 import { UpgradeLadder } from '@/components/upgrades/upgrade-ladder';
 import { MainScreen } from '@/constants/theme';
+import { playSfx } from '@/game/audio/engine';
 import { levelFromXp } from '@/game/economy/level';
 import { useEconomyStore } from '@/game/economy/store';
 
@@ -43,7 +44,9 @@ export default function UpgradesScreen() {
           unlockedLevels={level}
           coins={coins}
           ownedUpgrades={ownedUpgrades}
-          onBuy={(step) => buyUpgrade(step)}
+          onBuy={(step) => {
+            if (buyUpgrade(step)) playSfx('ui-purchase');
+          }}
         />
 
         <LinearGradient
